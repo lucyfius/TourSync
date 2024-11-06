@@ -16,13 +16,14 @@ class TourAPIClient:
             print(f"Error fetching tours: {e}")
             return []
 
-    def create_tour(self, property_id, tour_time, client_name):
+    def create_tour(self, property_id, tour_time, client_name, phone_number):
         """Create a new tour"""
         try:
             data = {
                 "property_id": property_id,
                 "tour_time": tour_time.isoformat(),
-                "client_name": client_name
+                "client_name": client_name,
+                "phone_number": phone_number
             }
             response = requests.post(f"{self.base_url}/tours", json=data)
             response.raise_for_status()
