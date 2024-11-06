@@ -1,3 +1,5 @@
+from flask import Flask
+from flask.cli import FlaskGroup
 from database import app, db
 from models import Tour, TourStatus
 
@@ -15,6 +17,22 @@ def reset_db():
         db.create_all()
         print("Database reset successfully!")
 
+def migrate_db():
+    with app.app_context():
+        # Generate migration
+        from flask_migrate import Migrate, migrate
+        migrate = Migrate(app, db)
+        migrate()
+        print("Migration completed successfully!")
+
+def upgrade_db():
+    with app.app_context():
+        # Apply migrations
+        from flask_migrate import Migrate, upgrade
+        migrate = Migrate(app, db)
+        upgrade()
+        print("Database upgraded successfully!")
+
 if __name__ == "__main__":
     import sys
     
@@ -24,11 +42,12 @@ if __name__ == "__main__":
         elif sys.argv[1] == "reset":
             reset_db()
         elif sys.argv[1] == "migrate":
-            # Migrations are handled by flask-migrate CLI
-            print("Please use 'flask db migrate' for migrations")
+            migrate_db()
+        elif sys.argv[1] == "upgrade":
+            upgrade_db()
     else:
         print("Available commands:")
-        print("python manage_db.py init  - Initialize the database")
-        print("python manage_db.py reset - Reset the database")
-        print("flask db migrate         - Generate migrations")
-        print("flask db upgrade         - Apply migrations") 
+        print("python manage_db.py init    - Initialize the database")
+        print("python manage_db.py reset   - Reset the database")
+        print("python manage_db.py migrate - Generate migrations")
+        print("python manage_db.py upgrade - Apply migrations") 

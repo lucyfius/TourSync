@@ -118,7 +118,7 @@ class TourSchedulerApp:
             height=15
         )
         
-        # Configure columns
+        # Configure columns with sorting
         column_widths = {
             'Date': 100,
             'Time': 80,
@@ -128,7 +128,8 @@ class TourSchedulerApp:
         }
         
         for col, width in column_widths.items():
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=col, 
+                             command=lambda c=col: self.sort_treeview(c))
             self.tree.column(col, width=width)
 
         self.tree.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -226,6 +227,61 @@ class TourSchedulerApp:
         self.property_id_var.set("")
         self.time_var.set("09:00 AM")
         self.date_picker.set_date(datetime.now())
+
+    def refresh_tours(self):
+        """Refresh the tours list"""
+        # Clear existing items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        try:
+            # Fetch tours
+            tours = self.api_client.get_tours()
+            
+            # Convert to list and sort by tour time
+            sorted_tours = sorted(
+                tours,
+                key=lambda x: datetime.fromisoformat(x['tour_time'])
+            )
+            
+            # Display tours
+            for tour in sorted_tours:
+                # Parse the ISO format datetime
+                tour_time = datetime.fromisoformat(tour['tour_time'])
+                
+                # Format date and time for display
+                date_str = tour_time.strftime('%Y-%m-%d')
+                time_str = tour_time.strftime('%I:%M %p')
+                
+                # Insert into tree view
+                self.tree.insert('', 'end', values=(
+                    date_str,
+                    time_str,
+                    tour['client_name'],
+                    tour.get('phone_number', 'N/A'),
+                    tour['property_id']
+                ))
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to refresh tours: {str(e)}")
+
+    def sort_treeview(self, col):
+        """Sort treeview content when header is clicked"""
+        # Get all items
+        items = [(self.tree.set(item, col), item) for item in self.tree.get_children('')]
+        
+        # Sort items
+        items.sort(reverse=hasattr(self, '_sort_reverse') and self._sort_reverse)
+        
+        # Toggle sort direction for next click
+        self._sort_reverse = not getattr(self, '_sort_reverse', False)
+        
+        # Rearrange items in sorted positions
+        for index, (_, item) in enumerate(items):
+            self.tree.move(item, '', index)
+        
+        # Update header to indicate sort direction
+        self.tree.heading(col, text=f"{col} {'↑' if self._sort_reverse else '↓'}")
 
 if __name__ == "__main__":
     root = tk.Tk()
