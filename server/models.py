@@ -1,5 +1,5 @@
 from datetime import datetime
-from manage_db import db
+from database import db
 import enum
 
 class TourStatus(enum.Enum):
