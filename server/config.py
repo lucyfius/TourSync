@@ -20,3 +20,17 @@ def validate_config():
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing_vars)}"
         )
+
+class Config:
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
+    CORS_HEADERS = 'Content-Type'
+    RATELIMIT_HEADERS_ENABLED = True
+    
+class DevelopmentConfig(Config):
+    DEBUG = True
+    
+class ProductionConfig(Config):
+    DEBUG = False
+    PREFERRED_URL_SCHEME = 'https'

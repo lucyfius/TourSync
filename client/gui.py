@@ -33,6 +33,10 @@ class TourSchedulerApp:
         self.init_variables()
         self.create_layout()
 
+        # Cache commonly used styles
+        self.cached_styles = {}
+        self.setup_cached_styles()
+
     def setup_styles(self):
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -521,3 +525,11 @@ class TourSchedulerApp:
         self.tree.tag_configure('oddrow', background=self.colors['row_alt'])
         
         self.refresh_tours()
+
+    def setup_cached_styles(self):
+        """Cache common styles for reuse"""
+        self.cached_styles.update({
+            'common_padding': {'padx': 20, 'pady': 20},
+            'form_style': {'relief': 'solid', 'borderwidth': 1},
+            'button_style': {'font': ('Segoe UI', 11)}
+        })

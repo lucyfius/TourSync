@@ -19,6 +19,12 @@ class Tour(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Add indexes for frequently queried columns
+    __table_args__ = (
+        db.Index('idx_tour_time', 'tour_time'),
+        db.Index('idx_property_status', 'property_id', 'status'),
+    )
+
     def to_dict(self):
         return {
             'id': self.id,

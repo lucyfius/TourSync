@@ -5,13 +5,21 @@ from config import API_BASE_URL
 class TourAPIClient:
     def __init__(self):
         self.base_url = API_BASE_URL
+        self.session = requests.Session()
+        self.cache = {}
 
     def get_tours(self):
-        """Fetch all tours"""
+        """Fetch all tours with caching"""
+        cache_key = 'tours'
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+            
         try:
-            response = requests.get(f"{self.base_url}/tours")
+            response = self.session.get(f"{self.base_url}/tours")
             response.raise_for_status()
-            return response.json()
+            tours = response.json()
+            self.cache[cache_key] = tours
+            return tours
         except requests.RequestException as e:
             print(f"Error fetching tours: {e}")
             return []
