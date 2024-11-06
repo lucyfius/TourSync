@@ -10,8 +10,6 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///database/tours.db')
 # Flask configuration
 SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
 DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-HOST = os.getenv('FLASK_HOST', '0.0.0.0')
-PORT = int(os.getenv('FLASK_PORT', 5000))
 
 # Validate required environment variables
 def validate_config():
@@ -20,6 +18,5 @@ def validate_config():
     
     if missing_vars:
         raise ValueError(
-            f"Missing required environment variables: {', '.join(missing_vars)}\n"
-            f"Please check your .env file or environment variables."
+            f"Missing required environment variables: {', '.join(missing_vars)}"
         )
