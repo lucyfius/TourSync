@@ -218,12 +218,12 @@ class ModernUI(ttk.Frame):
         """Show dashboard with all tours"""
         self.clear_content()
         
-        # Main container
-        self.dashboard_frame = tk.Frame(self.content, bg=self.colors['white'])
-        self.dashboard_frame.pack(fill='both', expand=True, padx=40, pady=30)
+        # Create a single main frame for the dashboard
+        main_frame = tk.Frame(self.content, bg=self.colors['white'])
+        main_frame.pack(fill='both', expand=True, padx=40, pady=30)
         
         # Header with refresh button
-        header_frame = tk.Frame(self.dashboard_frame, bg=self.colors['white'])
+        header_frame = tk.Frame(main_frame, bg=self.colors['white'])
         header_frame.pack(fill='x', pady=(0, 30))
         
         tk.Label(header_frame,
@@ -235,14 +235,13 @@ class ModernUI(ttk.Frame):
         ttk.Button(header_frame,
                   text="↻ Refresh",
                   style='Secondary.TButton',
-                  command=self.refresh_dashboard).pack(side='right')
+                  command=self.refresh_view).pack(side='right')
         
         # Create tours list frame
-        self.tours_list = tk.Frame(self.dashboard_frame, bg=self.colors['white'])
-        self.tours_list.pack(fill='both', expand=True)
+        tours_frame = tk.Frame(main_frame, bg=self.colors['white'])
+        tours_frame.pack(fill='both', expand=True)
         
-        # Load tours
-        self.load_tours()
+        self.display_tours(tours_frame)
 
     def show_tours(self):
         """Show tours view"""
@@ -588,82 +587,35 @@ class ModernUI(ttk.Frame):
                       command=self.refresh_dashboard).pack(anchor='w')
 
     def create_tours_section(self, parent):
-        """Create upcoming tours section"""
-        tours_frame = ttk.Frame(parent, style='Content.TFrame')
-        tours_frame.pack(fill='both', expand=True, pady=(30, 0))
-        
-        # Header with title and refresh button
-        header_frame = ttk.Frame(tours_frame, style='Content.TFrame')
-        header_frame.pack(fill='x', pady=(0, 20))
+        """Create tours section with scrollable list"""
+        # Section header
+        header_frame = ttk.Frame(parent, style='Card.TFrame')
+        header_frame.pack(fill='x', padx=30, pady=(30, 20))
         
         ttk.Label(header_frame,
                  text="Upcoming Tours",
                  style='Header.TLabel').pack(side='left')
-                 
-        ttk.Button(header_frame,
-                  text="↻ Refresh",
-                  style='Refresh.TButton',
-                  command=self.load_tours).pack(side='right')
         
-        # Create scrollable tours list
-        self.create_tours_list(tours_frame)
-
-    def create_tours_list(self, parent, filter_today=False):
-        """Create list of tours with error handling"""
-        try:
-            # Create scrollable frame for tours
-            scroll_frame = ttk.Frame(parent)
-            scroll_frame.pack(fill='both', expand=True)
-            
-            canvas = tk.Canvas(scroll_frame, bg=self.colors['white'])
-            scrollbar = ttk.Scrollbar(scroll_frame, orient='vertical', command=canvas.yview)
-            
-            tours_frame = ttk.Frame(canvas)
-            tours_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-            
-            canvas.create_window((0, 0), window=tours_frame, anchor='nw')
-            canvas.configure(yscrollcommand=scrollbar.set)
-            
-            # Pack scrollbar and canvas
-            scrollbar.pack(side='right', fill='y')
-            canvas.pack(side='left', fill='both', expand=True)
-            
-            try:
-                # Fetch tours from API
-                tours = self.api_client.get_tours()
-                
-                if tours:
-                    # Filter tours if needed
-                    if filter_today:
-                        today = datetime.now().date()
-                        tours = [t for t in tours if datetime.strptime(t['date'], '%Y-%m-%d').date() == today]
-                    
-                    # Create tour cards
-                    for tour in tours:
-                        self.create_tour_card(tours_frame, tour)
-                else:
-                    # No tours message
-                    ttk.Label(tours_frame,
-                             text="No tours scheduled",
-                             style='FormLabel.TLabel').pack(pady=20)
-                         
-            except Exception as e:
-                # Handle API error gracefully
-                error_frame = ttk.Frame(tours_frame)
-                error_frame.pack(fill='x', pady=20)
-                
-                ttk.Label(error_frame,
-                         text="⚠️ Unable to load tours",
-                         style='Error.TLabel').pack(anchor='w')
-                         
-                ttk.Label(error_frame,
-                         text="Please try refreshing or contact support if the issue persists.",
-                         style='FormLabel.TLabel').pack(anchor='w', pady=(5, 0))
-                
-                print(f"Error fetching tours: {str(e)}")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to create tour list: {str(e)}")
+        # Create scrollable frame
+        container = ttk.Frame(parent, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
+        
+        # Add scrollbar
+        canvas = tk.Canvas(container, bg=self.colors['white'])
+        scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
+        
+        # Create frame for tours
+        tours_frame = ttk.Frame(canvas, style='Card.TFrame')
+        tours_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        
+        canvas.create_window((0, 0), window=tours_frame, anchor='nw', width=canvas.winfo_width())
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        
+        # Load tours
+        self.display_tours(tours_frame)
 
     def create_tour_card(self, parent, tour):
         """Create individual tour card"""
@@ -681,21 +633,23 @@ class ModernUI(ttk.Frame):
                     fg=self.colors['text'],
                     bg=self.colors['white']).pack(anchor='w')
             
-            # Property and client info
+            # Property address
             tk.Label(content,
-                    text=f"🏠 Property: {tour.get('property_address', tour.get('property_id', 'N/A'))}",
+                    text=f"🏠 {tour.get('property_address', tour.get('property_id', 'N/A'))}",
                     font=('Segoe UI', 12),
                     fg=self.colors['text_secondary'],
                     bg=self.colors['white']).pack(anchor='w', pady=(10, 0))
-                    
+            
+            # Client info
             tk.Label(content,
-                    text=f"👤 Client: {tour.get('client_name', 'N/A')}",
+                    text=f"👤 {tour.get('client_name', 'N/A')}",
                     font=('Segoe UI', 12),
                     fg=self.colors['text_secondary'],
                     bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-                    
+            
+            # Phone number
             tk.Label(content,
-                    text=f"📱 Phone: {tour.get('phone_number', 'N/A')}",
+                    text=f"📱 {tour.get('phone_number', 'N/A')}",
                     font=('Segoe UI', 12),
                     fg=self.colors['text_secondary'],
                     bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
@@ -705,6 +659,7 @@ class ModernUI(ttk.Frame):
                       text="Cancel Tour",
                       style='Danger.TButton',
                       command=lambda: self.cancel_tour(tour['id'])).pack(anchor='w', pady=(15, 0))
+                  
         except Exception as e:
             print(f"Error creating tour card: {str(e)}")
 
@@ -920,32 +875,18 @@ class ModernUI(ttk.Frame):
         """Refresh the dashboard"""
         self.show_dashboard()
 
-    def display_tours(self, parent):
-        """Display all tours in chronological order"""
-        # Create scrollable frame
-        scroll_frame = ttk.Frame(parent)
-        scroll_frame.pack(fill='both', expand=True)
-        
-        canvas = tk.Canvas(scroll_frame, bg=self.colors['white'])
-        scrollbar = ttk.Scrollbar(scroll_frame, orient='vertical', command=canvas.yview)
-        
-        tours_frame = ttk.Frame(canvas)
-        tours_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        
-        canvas.create_window((0, 0), window=tours_frame, anchor='nw')
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        scrollbar.pack(side='right', fill='y')
-        canvas.pack(side='left', fill='both', expand=True)
-        
+    def display_tours(self, parent_frame):
+        """Display tours in the given frame"""
         try:
             # Get tours from API
             tours = self.api_client.get_tours()
             
             if not tours:
-                ttk.Label(tours_frame,
-                         text="No tours scheduled",
-                         style='FormLabel.TLabel').pack(pady=20)
+                tk.Label(parent_frame,
+                        text="No tours scheduled",
+                        font=('Segoe UI', 12),
+                        fg=self.colors['text_secondary'],
+                        bg=self.colors['white']).pack(pady=20)
                 return
                 
             # Sort tours by date and time
@@ -953,25 +894,29 @@ class ModernUI(ttk.Frame):
             
             # Display tours
             for tour in tours:
-                self.create_tour_card(tours_frame, tour)
+                self.create_tour_card(parent_frame, tour)
                 
         except Exception as e:
-            # Error message with retry button
-            error_frame = ttk.Frame(tours_frame)
+            print(f"Failed to load tours: {str(e)}")
+            error_frame = tk.Frame(parent_frame, bg=self.colors['white'])
             error_frame.pack(fill='x', pady=20)
             
-            ttk.Label(error_frame,
-                     text="⚠️ Unable to load tours",
-                     style='Error.TLabel').pack(anchor='w')
-                     
-            ttk.Label(error_frame,
-                     text="Please check your connection and try again.",
-                     style='FormLabel.TLabel').pack(anchor='w', pady=(5, 10))
-                     
+            tk.Label(error_frame,
+                    text="⚠️ Unable to load tours",
+                    font=('Segoe UI', 12),
+                    fg='red',
+                    bg=self.colors['white']).pack(anchor='w')
+                    
+            tk.Label(error_frame,
+                    text="Please check your connection and try again.",
+                    font=('Segoe UI', 12),
+                    fg=self.colors['text_secondary'],
+                    bg=self.colors['white']).pack(anchor='w', pady=(5, 10))
+                    
             ttk.Button(error_frame,
                       text="Try Again",
                       style='Primary.TButton',
-                      command=self.refresh_dashboard).pack(anchor='w')
+                      command=self.refresh_view).pack(anchor='w')
             
             print(f"Error displaying tours: {str(e)}")
 
@@ -986,7 +931,7 @@ class ModernUI(ttk.Frame):
             try:
                 if self.api_client.delete_tour(tour_id):
                     messagebox.showinfo("Success", "Tour cancelled successfully!")
-                    self.refresh_dashboard()
+                    self.refresh_view()
                 else:
                     messagebox.showerror("Error", "Failed to cancel tour")
             except Exception as e:
@@ -1084,7 +1029,7 @@ class ModernUI(ttk.Frame):
                 if response:
                     messagebox.showinfo("Success", "Tour scheduled successfully!")
                     dialog.destroy()
-                    self.refresh_dashboard()  # Refresh the dashboard to show new tour
+                    self.refresh_view()  # Changed from refresh_dashboard to refresh_view
                 else:
                     messagebox.showerror("Error", "Failed to schedule tour")
             except Exception as e:
@@ -1103,3 +1048,7 @@ class ModernUI(ttk.Frame):
                   text="Schedule Tour",
                   style='Primary.TButton',
                   command=schedule_tour).pack(side='right')
+
+    def refresh_view(self):
+        """Refresh the current view"""
+        self.show_dashboard()
