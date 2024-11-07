@@ -4,6 +4,7 @@ import tkcalendar
 from datetime import datetime
 from api_client import TourAPIClient
 from config import validate_config
+from edit_tour_dialog import EditTourDialog
 
 class TourSchedulerApp:
     def __init__(self, root):
@@ -28,10 +29,18 @@ class TourSchedulerApp:
         # Initialize API client first
         self.api_client = TourAPIClient()  # Fixed variable name
         
-        # Configure styles
-        self.setup_styles()
-        self.init_variables()
-        self.create_layout()
+        # Define business hours
+        self.business_hours = {
+            'start': 9,     # 9 AM
+            'end': 17,      # 5 PM
+            'lunch_start': 12,  # 12 PM
+            'lunch_end': 13     # 1 PM
+        }
+        
+        # Setup variables and UI
+        self.setup_variables()
+        self.setup_ui()
+        self.refresh_tours()
 
         # Cache commonly used styles
         self.cached_styles = {}
@@ -187,6 +196,7 @@ class TourSchedulerApp:
         entry.pack(fill='x')
 
     def create_datetime_selectors(self, parent):
+        """Create date and time selection widgets"""
         # Date selector
         date_container = ttk.Frame(parent, style='Card.TFrame')
         date_container.pack(fill='x', pady=5)
@@ -195,13 +205,19 @@ class TourSchedulerApp:
                  text="Tour Date *",
                  style='Field.TLabel').pack(anchor='w', pady=(0, 5))
         
+        # Set minimum date to today
+        min_date = datetime.now().date()
+        
         self.date_picker = tkcalendar.DateEntry(
             date_container,
             width=20,
             background=self.colors['primary'],
             foreground='white',
             borderwidth=0,
-            font=('Helvetica', 10)
+            font=('Helvetica', 10),
+            mindate=min_date,
+            firstweekday='monday',  # Start calendar on Monday
+            date_pattern='yyyy-mm-dd'
         )
         self.date_picker.pack(fill='x')
         
@@ -213,15 +229,46 @@ class TourSchedulerApp:
                  text="Tour Time *",
                  style='Field.TLabel').pack(anchor='w', pady=(0, 5))
         
-        times = [f"{h:02d}:00 {ap}" for h in range(9, 18) for ap in ('AM', 'PM')]
-        self.time_combo = ttk.Combobox(
-            time_container,
-            textvariable=self.time_var,
-            values=times,
-            state='readonly',
-            font=('Helvetica', 10)
+        time_frame = ttk.Frame(time_container)
+        time_frame.pack(fill='x')
+        
+        # Hour spinbox
+        self.hour_var = tk.StringVar(value="09")  # Initialize with default value
+        hour_spin = ttk.Spinbox(
+            time_frame, 
+            from_=1, 
+            to=12, 
+            width=3,
+            textvariable=self.hour_var,
+            format="%02.0f",
+            wrap=True  # Allow wrapping around
         )
-        self.time_combo.pack(fill='x')
+        hour_spin.pack(side='left')
+        
+        ttk.Label(time_frame, text=":").pack(side='left', padx=2)
+        
+        # Minute spinbox
+        self.minute_var = tk.StringVar(value="00")  # Initialize with default value
+        minute_spin = ttk.Spinbox(
+            time_frame,
+            from_=0,
+            to=59,
+            width=3,
+            textvariable=self.minute_var,
+            format="%02.0f",
+            wrap=True
+        )
+        minute_spin.pack(side='left')
+        
+        # AM/PM selector
+        self.ampm_var = tk.StringVar(value="AM")  # Initialize with default value
+        ttk.Combobox(
+            time_frame,
+            values=('AM', 'PM'),
+            width=3,
+            textvariable=self.ampm_var,
+            state='readonly'
+        ).pack(side='left', padx=(5, 0))
 
     def refresh_tours(self):
         """Refresh the tours list"""
@@ -267,11 +314,17 @@ class TourSchedulerApp:
         try:
             # Parse time
             time_str = self.time_var.get()
+            date = self.date_picker.get_date()
+            
+            # Validate tour time
+            if not self.validate_tour_time(date, time_str):
+                return
+                
+            # Parse time for API
             time_format = "%I:%M %p"
             parsed_time = datetime.strptime(time_str, time_format)
             
             # Combine date and time
-            date = self.date_picker.get_date()
             tour_time = datetime.combine(date, parsed_time.time())
             
             # Format client name
@@ -280,7 +333,7 @@ class TourSchedulerApp:
             # Schedule the tour
             result = self.api_client.create_tour(
                 property_id=self.property_id_var.get().strip(),
-                tour_time=tour_time.isoformat(),
+                tour_time=tour_time,
                 client_name=client_name,
                 phone_number=self.phone_var.get().strip()
             )
@@ -295,12 +348,27 @@ class TourSchedulerApp:
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
+    def validate_phone_number(self, phone):
+        """Validate phone number format"""
+        # Remove all non-numeric characters
+        cleaned = ''.join(filter(str.isdigit, phone))
+        
+        # Check length
+        if len(cleaned) != 10:
+            return False
+            
+        # Format validation (XXX-XXX-XXXX)
+        try:
+            formatted = f"{cleaned[:3]}-{cleaned[3:6]}-{cleaned[6:]}"
+            return True, formatted
+        except:
+            return False, None
+
     def validate_inputs(self):
         """Validate form inputs"""
         validation_fields = [
             (self.first_name_var.get().strip(), "First Name"),
             (self.last_name_var.get().strip(), "Last Name"),
-            (self.phone_var.get().strip(), "Phone Number"),
             (self.property_id_var.get().strip(), "Property ID")
         ]
         
@@ -309,16 +377,18 @@ class TourSchedulerApp:
                 messagebox.showwarning("Missing Information", f"Please enter {field_name}")
                 return False
 
-        # Validate phone number format
+        # Validate phone number
         phone = self.phone_var.get().strip()
-        cleaned_phone = ''.join(filter(str.isdigit, phone))
-        if len(cleaned_phone) != 10:
+        is_valid, formatted_phone = self.validate_phone_number(phone)
+        if not is_valid:
             messagebox.showwarning(
                 "Invalid Input", 
                 "Please enter a valid 10-digit phone number\nExample: 555-555-5555"
             )
             return False
-            
+        
+        # Update phone number with formatted version
+        self.phone_var.set(formatted_phone)
         return True
 
     def clear_form(self):
@@ -389,16 +459,7 @@ class TourSchedulerApp:
         # Time selection
         time_frame = ttk.Frame(fields_frame)
         time_frame.pack(fill='x', pady=5)
-        ttk.Label(time_frame, text="Tour Time:").pack(side='left')
-        times = [f"{h:02d}:00 {ap}" for h in range(9, 18) for ap in ('AM', 'PM')]
-        self.time_combo = ttk.Combobox(
-            time_frame,
-            textvariable=self.time_var,
-            values=times,
-            state='readonly',
-            width=18
-        )
-        self.time_combo.pack(side='left', padx=(10, 0))
+        self.setup_time_selection(time_frame)
         
         # Submit button
         ttk.Button(fields_frame, 
@@ -494,7 +555,7 @@ class TourSchedulerApp:
         # Create Treeview with modern style
         self.tree = ttk.Treeview(
             parent,
-            columns=('Date', 'Time', 'Name', 'Phone', 'Property'),
+            columns=('Date', 'Time', 'Name', 'Phone', 'Property', 'Status'),
             show='headings',
             style='Modern.Treeview',
             height=12
@@ -506,7 +567,8 @@ class TourSchedulerApp:
             'Time': ('Time', 100),
             'Name': ('Client Name', 200),
             'Phone': ('Phone', 150),
-            'Property': ('Property ID', 150)
+            'Property': ('Property ID', 150),
+            'Status': ('Status', 100)
         }
         
         for col, (heading, width) in columns.items():
@@ -526,6 +588,16 @@ class TourSchedulerApp:
         
         self.refresh_tours()
 
+        # Add right-click menu
+        self.tour_menu = tk.Menu(self.root, tearoff=0)
+        self.tour_menu.add_command(label="Complete Tour", command=self.complete_selected_tour)
+        self.tour_menu.add_command(label="Cancel Tour", command=self.cancel_selected_tour)
+        self.tour_menu.add_separator()
+        self.tour_menu.add_command(label="Edit Tour", command=self.edit_selected_tour)
+        
+        # Bind right-click to show menu
+        self.tree.bind("<Button-3>", self.show_tour_menu)
+
     def setup_cached_styles(self):
         """Cache common styles for reuse"""
         self.cached_styles.update({
@@ -533,3 +605,144 @@ class TourSchedulerApp:
             'form_style': {'relief': 'solid', 'borderwidth': 1},
             'button_style': {'font': ('Segoe UI', 11)}
         })
+
+    def get_tour_id_from_selection(self, item):
+        """Get tour ID from the selected item"""
+        try:
+            item_values = self.tree.item(item)['values']
+            if not item_values:
+                messagebox.showerror("Error", "Invalid selection")
+                return None
+                
+            tour_data = self.api_client.get_tours()
+            if not tour_data:
+                messagebox.showerror("Error", "Failed to fetch tour data")
+                return None
+                
+            for tour in tour_data:
+                if (tour['tour_time'].split('T')[0] == item_values[0] and
+                    tour['client_name'] == item_values[2] and
+                    tour['property_id'] == item_values[4]):
+                    return tour
+        except Exception as e:
+            print(f"Error getting tour ID: {e}")
+            return None
+
+    def show_tour_menu(self, event):
+        """Show the context menu on right-click"""
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            self.tour_menu.post(event.x_root, event.y_root)
+
+    def complete_selected_tour(self):
+        """Mark the selected tour as completed"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a tour to complete")
+            return
+        
+        tour_id = self.get_tour_id_from_selection(selected[0])
+        if tour_id:
+            if messagebox.askyesno("Confirm", "Mark this tour as completed?"):
+                if self.api_client.complete_tour(tour_id):
+                    self.refresh_tours()
+                    messagebox.showinfo("Success", "Tour marked as completed")
+                else:
+                    messagebox.showerror("Error", "Failed to complete tour")
+
+    def cancel_selected_tour(self):
+        """Cancel the selected tour"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a tour to cancel")
+            return
+        
+        tour_id = self.get_tour_id_from_selection(selected[0])
+        if tour_id:
+            if messagebox.askyesno("Confirm", "Are you sure you want to cancel this tour?"):
+                if self.api_client.cancel_tour(tour_id):
+                    self.tree.selection_remove(selected)  # Clear selection
+                    self.refresh_tours()
+                    messagebox.showinfo("Success", "Tour cancelled")
+                else:
+                    messagebox.showerror("Error", "Failed to cancel tour")
+
+    def edit_selected_tour(self):
+        """Edit the selected tour"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a tour to edit")
+            return
+        
+        tour_id = self.get_tour_id_from_selection(selected[0])
+        if tour_id:
+            # Create edit dialog
+            EditTourDialog(self.root, self.api_client, tour_id, self.refresh_tours)
+
+    def validate_tour_time(self, date, time_str):
+        """Validate tour time against business rules"""
+        try:
+            # Parse time
+            parsed_time = datetime.strptime(time_str, "%I:%M %p")
+            hour = parsed_time.hour
+            
+            # Create full datetime
+            tour_datetime = datetime.combine(date, parsed_time.time())
+            current_time = datetime.now()
+
+            # Check if date is in the future
+            if tour_datetime <= current_time:
+                messagebox.showerror("Invalid Time", "Please select a future date and time.")
+                return False
+
+            # Check if it's a weekday
+            if tour_datetime.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+                messagebox.showerror("Invalid Day", "Tours can only be scheduled Monday through Friday.")
+                return False
+
+            # Check business hours (9 AM - 5 PM)
+            if hour < self.business_hours['start'] or hour >= self.business_hours['end']:
+                messagebox.showerror(
+                    "Invalid Time", 
+                    "Tours can only be scheduled between 9:00 AM and 5:00 PM."
+                )
+                return False
+
+            # Check lunch hour (12 PM - 1 PM)
+            if self.business_hours['lunch_start'] <= hour < self.business_hours['lunch_end']:
+                messagebox.showerror(
+                    "Invalid Time",
+                    "Tours cannot be scheduled during lunch hour (12:00 PM - 1:00 PM)."
+                )
+                return False
+
+            return True
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid time format: {str(e)}")
+            return False
+
+    def get_available_times(self):
+        """Generate list of available appointment times"""
+        times = []
+        for hour in range(self.business_hours['start'], self.business_hours['end']):
+            # Skip lunch hour
+            if hour >= self.business_hours['lunch_start'] and hour < self.business_hours['lunch_end']:
+                continue
+                
+            # Convert to 12-hour format
+            if hour == 12:
+                times.append(f"12:00 PM")
+            elif hour > 12:
+                times.append(f"{hour-12:02d}:00 PM")
+            else:
+                times.append(f"{hour:02d}:00 AM")
+        return times
+
+    def setup_ui(self):
+        """Setup the main UI"""
+        # Remove duplicate date picker creation
+        self.create_form_fields()
+        self.create_datetime_selectors(self.form_frame)
+        self.create_buttons()
+        self.create_tour_list()

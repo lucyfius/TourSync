@@ -30,9 +30,31 @@ def sanitize_input(data):
         logger.error(f"Error sanitizing input: {e}")
         raise ValueError("Invalid input data")
 
+def validate_business_hours(tour_time):
+    """Validate tour time against business rules"""
+    # Check if it's a weekday
+    if tour_time.weekday() >= 5:
+        return False, "Tours can only be scheduled Monday through Friday."
+    
+    # Check business hours (9 AM - 5 PM)
+    hour = tour_time.hour
+    if hour < 9 or hour >= 17:
+        return False, "Tours can only be scheduled between 9:00 AM and 5:00 PM."
+    
+    # Check lunch hour (12 PM - 1 PM)
+    if hour >= 12 and hour < 13:
+        return False, "Tours cannot be scheduled during lunch hour (12:00 PM - 1:00 PM)."
+    
+    return True, None
+
 def check_time_conflict(tour_time, property_id, exclude_tour_id=None):
     """Check if there's a scheduling conflict"""
     try:
+        # First validate business hours
+        is_valid, error_message = validate_business_hours(tour_time)
+        if not is_valid:
+            raise ValueError(error_message)
+            
         query = Tour.query.filter(
             Tour.property_id == property_id,
             Tour.tour_time.between(tour_time - timedelta(hours=1), tour_time + timedelta(hours=1)),
@@ -68,6 +90,7 @@ def get_tours():
 @app.route('/api/tours', methods=['POST'])
 @limiter.limit("20 per minute")
 def create_tour():
+    """Create a new tour"""
     try:
         if not request.json:
             return jsonify(error="Missing request data"), 400
@@ -82,31 +105,113 @@ def create_tour():
 
         try:
             tour_time = datetime.fromisoformat(data['tour_time'])
-        except ValueError:
-            return jsonify(error="Invalid tour time format"), 400
-        
-        if check_time_conflict(tour_time, data['property_id']):
-            return jsonify(error='Time slot conflict'), 409
-        
-        new_tour = Tour(
-            property_id=data['property_id'],
-            tour_time=tour_time,
-            client_name=data.get('client_name'),
-            phone_number=data.get('phone_number')
-        )
-        
-        db.session.add(new_tour)
-        db.session.commit()
-        
-        logger.info(f"Created new tour: {new_tour.id}")
-        return jsonify(new_tour.to_dict()), 201
-
-    except ValueError as e:
-        return jsonify(error=str(e)), 400
+            
+            # Validate business hours
+            is_valid, error_message = validate_business_hours(tour_time)
+            if not is_valid:
+                return jsonify(error=error_message), 400
+                
+            # Check for conflicts
+            if check_time_conflict(tour_time, data['property_id']):
+                return jsonify(error="Time slot conflict"), 409
+                
+            new_tour = Tour(
+                property_id=data['property_id'],
+                tour_time=tour_time,
+                end_time=tour_time + timedelta(hours=1),
+                client_name=data['client_name'],
+                phone_number=data.get('phone_number')
+            )
+            
+            db.session.add(new_tour)
+            db.session.commit()
+            
+            return jsonify(new_tour.to_dict()), 201
+            
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+            
     except Exception as e:
         logger.error(f"Error creating tour: {e}")
         db.session.rollback()
         return jsonify(error="Failed to create tour"), 500
+
+@app.route('/api/tours/<int:tour_id>', methods=['GET'])
+def get_tour(tour_id):
+    """Get a specific tour by ID"""
+    try:
+        tour = Tour.query.get_or_404(tour_id)
+        return jsonify(tour.to_dict())
+    except Exception as e:
+        logger.error(f"Error fetching tour: {e}")
+        return jsonify(error="Failed to fetch tour"), 500
+
+@app.route('/api/tours/<int:tour_id>', methods=['PUT'])
+def update_tour(tour_id):
+    """Update a tour"""
+    try:
+        tour = Tour.query.get_or_404(tour_id)
+        data = request.json
+        
+        if 'tour_time' in data:
+            tour_time = datetime.fromisoformat(data['tour_time'])
+            
+            # Validate business hours
+            is_valid, error_message = validate_business_hours(tour_time)
+            if not is_valid:
+                return jsonify(error=error_message), 400
+                
+            # Check for conflicts
+            if check_time_conflict(tour_time, tour.property_id, tour_id):
+                return jsonify(error="Time slot conflict"), 409
+                
+            tour.tour_time = tour_time
+            tour.end_time = tour_time + timedelta(hours=1)
+            
+        if 'client_name' in data:
+            tour.client_name = data['client_name']
+            
+        if 'phone_number' in data:
+            tour.phone_number = data['phone_number']
+            
+        if 'property_id' in data:
+            tour.property_id = data['property_id']
+            
+        db.session.commit()
+        return jsonify(tour.to_dict())
+        
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    except Exception as e:
+        logger.error(f"Error updating tour: {e}")
+        db.session.rollback()
+        return jsonify(error="Failed to update tour"), 500
+
+@app.route('/api/tours/<int:tour_id>/cancel', methods=['POST'])
+def cancel_tour(tour_id):
+    """Cancel a tour"""
+    try:
+        tour = Tour.query.get_or_404(tour_id)
+        tour.status = TourStatus.CANCELLED
+        db.session.commit()
+        return jsonify(tour.to_dict())
+    except Exception as e:
+        logger.error(f"Error cancelling tour: {e}")
+        db.session.rollback()
+        return jsonify(error="Failed to cancel tour"), 500
+
+@app.route('/api/tours/<int:tour_id>/complete', methods=['POST'])
+def complete_tour(tour_id):
+    """Complete a tour"""
+    try:
+        tour = Tour.query.get_or_404(tour_id)
+        tour.status = TourStatus.COMPLETED
+        db.session.commit()
+        return jsonify(tour.to_dict())
+    except Exception as e:
+        logger.error(f"Error completing tour: {e}")
+        db.session.rollback()
+        return jsonify(error="Failed to complete tour"), 500
 
 if __name__ == '__main__':
     app.run(debug=False)  # Set debug=False in production

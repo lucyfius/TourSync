@@ -5,6 +5,7 @@ import enum
 class TourStatus(enum.Enum):
     SCHEDULED = "scheduled"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
     NO_SHOW = "no_show"
 
 class Tour(db.Model):
@@ -13,6 +14,7 @@ class Tour(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     property_id = db.Column(db.String(50), nullable=False)
     tour_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Enum(TourStatus), default=TourStatus.SCHEDULED)
     client_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
@@ -30,6 +32,7 @@ class Tour(db.Model):
             'id': self.id,
             'property_id': self.property_id,
             'tour_time': self.tour_time.isoformat(),
+            'end_time': self.end_time.isoformat(),
             'status': self.status.value,
             'client_name': self.client_name,
             'phone_number': self.phone_number,
