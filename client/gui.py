@@ -218,29 +218,30 @@ class ModernUI(ttk.Frame):
         """Show dashboard with all tours"""
         self.clear_content()
         
-        # Create a single main frame for the dashboard
-        main_frame = tk.Frame(self.content, bg=self.colors['white'])
-        main_frame.pack(fill='both', expand=True, padx=40, pady=30)
+        # Main container
+        container = tk.Frame(self.content, bg=self.colors['white'])
+        container.pack(fill='both', expand=True, padx=40, pady=30)
         
-        # Header with refresh button
-        header_frame = tk.Frame(main_frame, bg=self.colors['white'])
-        header_frame.pack(fill='x', pady=(0, 30))
+        # Header
+        header = tk.Frame(container, bg=self.colors['white'])
+        header.pack(fill='x', pady=(0, 30))
         
-        tk.Label(header_frame,
+        tk.Label(header,
                 text="Dashboard",
                 font=('Segoe UI', 28, 'bold'),
                 fg=self.colors['text'],
                 bg=self.colors['white']).pack(side='left')
-                
-        ttk.Button(header_frame,
+        
+        ttk.Button(header,
                   text="↻ Refresh",
                   style='Secondary.TButton',
-                  command=self.refresh_view).pack(side='right')
+                  command=lambda: self.show_dashboard()).pack(side='right')
         
-        # Create tours list frame
-        tours_frame = tk.Frame(main_frame, bg=self.colors['white'])
+        # Create scrollable frame for tours
+        tours_frame = tk.Frame(container, bg=self.colors['white'])
         tours_frame.pack(fill='both', expand=True)
         
+        # Display tours in the frame
         self.display_tours(tours_frame)
 
     def show_tours(self):
