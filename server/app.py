@@ -1,217 +1,284 @@
-from database import app, db
-from models import Tour, TourStatus
-from flask import request, jsonify
-from datetime import datetime, timedelta
-from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-import bleach
-import logging
+from flask import Flask, request, jsonify, g
+from contextlib import contextmanager
+import sqlite3
+import os
+from datetime import datetime
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+app = Flask(__name__)
 
-# Configure CORS
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:*"]}})
+# Database configuration
+DATABASE = 'toursync.db'
 
-# Configure rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row
+    return g.db
 
-def sanitize_input(data):
-    """Sanitize input data to prevent XSS"""
+@app.teardown_appcontext
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+def init_db():
+    """Initialize the database"""
     try:
-        return {k: bleach.clean(str(v)) for k, v in data.items()}
-    except Exception as e:
-        logger.error(f"Error sanitizing input: {e}")
-        raise ValueError("Invalid input data")
+        # Create database directory if it doesn't exist
+        db_dir = os.path.dirname(DATABASE)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir)
 
-def validate_business_hours(tour_time):
-    """Validate tour time against business rules"""
-    # Check if it's a weekday
-    if tour_time.weekday() >= 5:
-        return False, "Tours can only be scheduled Monday through Friday."
-    
-    # Check business hours (9 AM - 5 PM)
-    hour = tour_time.hour
-    if hour < 9 or hour >= 17:
-        return False, "Tours can only be scheduled between 9:00 AM and 5:00 PM."
-    
-    # Check lunch hour (12 PM - 1 PM)
-    if hour >= 12 and hour < 13:
-        return False, "Tours cannot be scheduled during lunch hour (12:00 PM - 1:00 PM)."
-    
-    return True, None
-
-def check_time_conflict(tour_time, property_id, exclude_tour_id=None):
-    """Check if there's a scheduling conflict"""
-    try:
-        # First validate business hours
-        is_valid, error_message = validate_business_hours(tour_time)
-        if not is_valid:
-            raise ValueError(error_message)
-            
-        query = Tour.query.filter(
-            Tour.property_id == property_id,
-            Tour.tour_time.between(tour_time - timedelta(hours=1), tour_time + timedelta(hours=1)),
-            Tour.status == TourStatus.SCHEDULED
-        )
-        if exclude_tour_id:
-            query = query.filter(Tour.id != exclude_tour_id)
-        return query.first() is not None
+        # Use direct connection for initialization
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
+        
+        # Create properties table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS properties (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                address TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        
+        # Create tours table with foreign key
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tours (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                property_id INTEGER NOT NULL,
+                client_name TEXT NOT NULL,
+                phone_number TEXT NOT NULL,
+                date DATE NOT NULL,
+                time TIME NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (property_id) REFERENCES properties (id)
+            );
+        """)
+        
+        conn.commit()
+        print("Database initialized successfully")
+        
+        # Check if tables were created
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cur.fetchall()
+        print("Created tables:", [table[0] for table in tables])
+        
+        cur.close()
+        conn.close()
+        
     except Exception as e:
-        logger.error(f"Error checking time conflict: {e}")
+        print(f"Error initializing database: {str(e)}")
         raise
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    """Handle rate limit exceeded"""
-    return jsonify(error="Rate limit exceeded. Please try again later."), 429
+@contextmanager
+def get_db_cursor():
+    db = get_db()
+    cursor = db.cursor()
+    try:
+        yield cursor
+        db.commit()
+    except:
+        db.rollback()
+        raise
+    finally:
+        cursor.close()
 
-@app.errorhandler(Exception)
-def handle_error(e):
-    """Handle general errors"""
-    logger.error(f"Unexpected error: {e}")
-    return jsonify(error="An unexpected error occurred"), 500
+@app.route('/api/properties', methods=['GET'])
+def get_properties():
+    try:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, address
+            FROM properties
+            ORDER BY address
+        """)
+        
+        properties = [{'id': row[0], 'address': row[1]} for row in cur.fetchall()]
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(properties)
+    except Exception as e:
+        print(f"Database error in get_properties: {str(e)}")
+        return jsonify({'error': 'Failed to fetch properties'}), 500
+
+@app.route('/api/properties', methods=['POST'])
+def add_property():
+    try:
+        data = request.json
+        if 'address' not in data:
+            return jsonify({'error': 'Property address is required'}), 400
+            
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
+        
+        cur.execute("""
+            INSERT INTO properties (address)
+            VALUES (?)
+        """, (data['address'],))
+        
+        property_id = cur.lastrowid
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': property_id,
+            'address': data['address'],
+            'message': 'Property added successfully'
+        }), 201
+    except Exception as e:
+        print(f"Database error in add_property: {str(e)}")
+        return jsonify({'error': 'Failed to add property'}), 500
+
+@app.route('/api/properties/<int:property_id>', methods=['DELETE'])
+def delete_property(property_id):
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
+        
+        # Check for existing tours
+        cur.execute("SELECT COUNT(*) FROM tours WHERE property_id = ?", (property_id,))
+        if cur.fetchone()[0] > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Cannot delete property with scheduled tours'}), 400
+        
+        cur.execute("DELETE FROM properties WHERE id = ?", (property_id,))
+        deleted = cur.rowcount > 0
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        if deleted:
+            return jsonify({'message': 'Property deleted successfully'}), 200
+        return jsonify({'error': 'Property not found'}), 404
+    except Exception as e:
+        print(f"Database error in delete_property: {str(e)}")
+        return jsonify({'error': 'Failed to delete property'}), 500
 
 @app.route('/api/tours', methods=['GET'])
 def get_tours():
     try:
-        tours = Tour.query.order_by(Tour.tour_time.desc()).all()
-        return jsonify([tour.to_dict() for tour in tours])
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT t.id, t.property_id, t.client_name, t.phone_number, 
+                   t.date, t.time, p.address as property_address
+            FROM tours t
+            JOIN properties p ON t.property_id = p.id
+            ORDER BY t.date, t.time
+        """)
+        
+        tours = []
+        for row in cur.fetchall():
+            tours.append({
+                'id': row['id'],
+                'property_id': row['property_id'],
+                'property_address': row['property_address'],
+                'client_name': row['client_name'],
+                'phone_number': row['phone_number'],
+                'date': row['date'],
+                'time': row['time']
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(tours)
+        
     except Exception as e:
-        logger.error(f"Error fetching tours: {e}")
-        return jsonify(error="Failed to fetch tours"), 500
+        print(f"Database error in get_tours: {str(e)}")
+        return jsonify({'error': 'Failed to fetch tours'}), 500
 
 @app.route('/api/tours', methods=['POST'])
-@limiter.limit("20 per minute")
-def create_tour():
-    """Create a new tour"""
+def add_tour():
     try:
-        if not request.json:
-            return jsonify(error="Missing request data"), 400
-
-        data = sanitize_input(request.json)
+        data = request.json
+        print("Server received tour data:", data)
+        
+        # Parse the tour_time into date and time
+        if 'tour_time' in data:
+            try:
+                tour_datetime = datetime.fromisoformat(data['tour_time'])
+                data['date'] = tour_datetime.strftime('%Y-%m-%d')
+                data['time'] = tour_datetime.strftime('%H:%M')
+            except ValueError as e:
+                print(f"Error parsing tour_time: {e}")
+                return jsonify({'error': 'Invalid tour time format'}), 400
         
         # Validate required fields
-        required_fields = ['tour_time', 'property_id', 'client_name']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return jsonify(error=f"Missing required fields: {', '.join(missing_fields)}"), 400
-
-        try:
-            tour_time = datetime.fromisoformat(data['tour_time'])
-            
-            # Validate business hours
-            is_valid, error_message = validate_business_hours(tour_time)
-            if not is_valid:
-                return jsonify(error=error_message), 400
-                
-            # Check for conflicts
-            if check_time_conflict(tour_time, data['property_id']):
-                return jsonify(error="Time slot conflict"), 409
-                
-            new_tour = Tour(
-                property_id=data['property_id'],
-                tour_time=tour_time,
-                end_time=tour_time + timedelta(hours=1),
-                client_name=data['client_name'],
-                phone_number=data.get('phone_number')
-            )
-            
-            db.session.add(new_tour)
-            db.session.commit()
-            
-            return jsonify(new_tour.to_dict()), 201
-            
-        except ValueError as e:
-            return jsonify(error=str(e)), 400
-            
-    except Exception as e:
-        logger.error(f"Error creating tour: {e}")
-        db.session.rollback()
-        return jsonify(error="Failed to create tour"), 500
-
-@app.route('/api/tours/<int:tour_id>', methods=['GET'])
-def get_tour(tour_id):
-    """Get a specific tour by ID"""
-    try:
-        tour = Tour.query.get_or_404(tour_id)
-        return jsonify(tour.to_dict())
-    except Exception as e:
-        logger.error(f"Error fetching tour: {e}")
-        return jsonify(error="Failed to fetch tour"), 500
-
-@app.route('/api/tours/<int:tour_id>', methods=['PUT'])
-def update_tour(tour_id):
-    """Update a tour"""
-    try:
-        tour = Tour.query.get_or_404(tour_id)
-        data = request.json
+        required_fields = ['property_id', 'client_name', 'phone_number']
+        for field in required_fields:
+            if field not in data:
+                print(f"Missing field: {field}")
+                return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        if 'tour_time' in data:
-            tour_time = datetime.fromisoformat(data['tour_time'])
-            
-            # Validate business hours
-            is_valid, error_message = validate_business_hours(tour_time)
-            if not is_valid:
-                return jsonify(error=error_message), 400
-                
-            # Check for conflicts
-            if check_time_conflict(tour_time, tour.property_id, tour_id):
-                return jsonify(error="Time slot conflict"), 409
-                
-            tour.tour_time = tour_time
-            tour.end_time = tour_time + timedelta(hours=1)
-            
-        if 'client_name' in data:
-            tour.client_name = data['client_name']
-            
-        if 'phone_number' in data:
-            tour.phone_number = data['phone_number']
-            
-        if 'property_id' in data:
-            tour.property_id = data['property_id']
-            
-        db.session.commit()
-        return jsonify(tour.to_dict())
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
         
-    except ValueError as e:
-        return jsonify(error=str(e)), 400
+        # Get property ID from address
+        cur.execute("SELECT id FROM properties WHERE address = ?", (data['property_id'],))
+        property_row = cur.fetchone()
+        if not property_row:
+            print(f"Property not found: {data['property_id']}")
+            return jsonify({'error': 'Property not found'}), 404
+            
+        property_id = property_row[0]
+        
+        cur.execute("""
+            INSERT INTO tours (property_id, client_name, phone_number, date, time)
+            VALUES (?, ?, ?, ?, ?)
+        """, (property_id, data['client_name'], data['phone_number'], 
+              data['date'], data['time']))
+        
+        tour_id = cur.lastrowid
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': tour_id,
+            'message': 'Tour scheduled successfully'
+        }), 201
+        
     except Exception as e:
-        logger.error(f"Error updating tour: {e}")
-        db.session.rollback()
-        return jsonify(error="Failed to update tour"), 500
+        print(f"Server error in add_tour: {str(e)}")
+        return jsonify({'error': 'Failed to schedule tour'}), 500
 
-@app.route('/api/tours/<int:tour_id>/cancel', methods=['POST'])
-def cancel_tour(tour_id):
-    """Cancel a tour"""
+@app.route('/api/tours/<int:tour_id>', methods=['DELETE'])
+def delete_tour(tour_id):
     try:
-        tour = Tour.query.get_or_404(tour_id)
-        tour.status = TourStatus.CANCELLED
-        db.session.commit()
-        return jsonify(tour.to_dict())
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
+        
+        cur.execute("DELETE FROM tours WHERE id = ?", (tour_id,))
+        deleted = cur.rowcount > 0
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        if deleted:
+            return jsonify({'message': 'Tour cancelled successfully'}), 200
+        return jsonify({'error': 'Tour not found'}), 404
     except Exception as e:
-        logger.error(f"Error cancelling tour: {e}")
-        db.session.rollback()
-        return jsonify(error="Failed to cancel tour"), 500
+        print(f"Database error in delete_tour: {str(e)}")
+        return jsonify({'error': 'Failed to cancel tour'}), 500
 
-@app.route('/api/tours/<int:tour_id>/complete', methods=['POST'])
-def complete_tour(tour_id):
-    """Complete a tour"""
-    try:
-        tour = Tour.query.get_or_404(tour_id)
-        tour.status = TourStatus.COMPLETED
-        db.session.commit()
-        return jsonify(tour.to_dict())
-    except Exception as e:
-        logger.error(f"Error completing tour: {e}")
-        db.session.rollback()
-        return jsonify(error="Failed to complete tour"), 500
-
+# Initialize database before running the app
 if __name__ == '__main__':
-    app.run(debug=False)  # Set debug=False in production
+    if not os.path.exists(DATABASE):
+        print("Creating new database...")
+        init_db()
+    app.run(debug=True)

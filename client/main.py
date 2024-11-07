@@ -1,26 +1,18 @@
 import tkinter as tk
-from gui import TourSchedulerApp
+from gui import ModernUI
 
 def main():
     root = tk.Tk()
-    
-    # Set window size and position
-    window_width = 1200
-    window_height = 700
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    center_x = int(screen_width/2 - window_width/2)
-    center_y = int(screen_height/2 - window_height/2)
-    
-    root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
-    root.minsize(1000, 600)
-    
-    # Configure main window
-    root.configure(bg='#F8FAFC')
     root.title("TourSync")
+    root.geometry("1200x800")
     
-    # Create the app
-    app = TourSchedulerApp(root)
+    # Configure grid weight
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+    
+    # Create and pack the modern UI
+    app = ModernUI(root)
+    app.pack(fill='both', expand=True)
     
     root.mainloop()
 
