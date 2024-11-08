@@ -605,18 +605,18 @@ class ModernUI(ttk.Frame):
         canvas = tk.Canvas(container, bg=self.colors['white'])
         scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
         
-        # Create frame for tours
-        tours_frame = ttk.Frame(canvas, style='Card.TFrame')
-        tours_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        # Create frame for tours and assign it to self.tours_list
+        self.tours_list = ttk.Frame(canvas, style='Card.TFrame')
+        self.tours_list.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
         
-        canvas.create_window((0, 0), window=tours_frame, anchor='nw', width=canvas.winfo_width())
+        canvas.create_window((0, 0), window=self.tours_list, anchor='nw', width=canvas.winfo_width())
         canvas.configure(yscrollcommand=scrollbar.set)
         
         scrollbar.pack(side='right', fill='y')
         canvas.pack(side='left', fill='both', expand=True)
         
         # Load tours
-        self.display_tours(tours_frame)
+        self.display_tours(self.tours_list)  # Changed from tours_frame to self.tours_list
 
     def create_tour_card(self, parent, tour):
         """Create individual tour card"""
