@@ -973,3 +973,62 @@ class ModernUI(ttk.Frame):
         except Exception as e:
             print(f"Error loading properties: {str(e)}")
             return []
+
+    def edit_property(self, property_data):
+        """Show property editing form in the main window"""
+        self.clear_content()
+        self.create_page_header("Edit Property", "Update property details")
+        
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
+        
+        # Form container
+        form_frame = ttk.Frame(container, style='Card.TFrame')
+        form_frame.pack(fill='x', padx=20, pady=20)
+        
+        # Address field
+        ttk.Label(form_frame,
+                 text="Property Address",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
+        address_var = tk.StringVar(value=property_data['address'])
+        address_entry = ttk.Entry(form_frame,
+                                textvariable=address_var,
+                                font=('Segoe UI', 11),
+                                width=40)
+        address_entry.pack(fill='x')
+        
+        # Buttons
+        button_frame = ttk.Frame(form_frame, style='Card.TFrame')
+        button_frame.pack(fill='x', pady=(20, 0))
+        
+        def save_changes():
+            address = address_var.get().strip()
+            if not address:
+                messagebox.showerror("Error", "Please enter a property address")
+                return
+                
+            try:
+                self.api_client.update_property(property_data['id'], {'address': address})
+                self.show_properties()  # Return to properties list
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update property: {str(e)}")
+        
+        # Cancel button (burgundy filled)
+        cancel_btn = self.create_styled_button(
+            button_frame,
+            "Cancel",
+            'Primary.TButton',
+            self.show_properties
+        )
+        cancel_btn.pack(side='left', padx=(0, 10))
+        
+        # Save button (burgundy filled)
+        save_btn = self.create_styled_button(
+            button_frame,
+            "Save Changes",
+            'Primary.TButton',
+            save_changes
+        )
+        save_btn.pack(side='right')
