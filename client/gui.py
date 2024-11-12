@@ -467,7 +467,7 @@ class ModernUI(ttk.Frame):
             btn_frame,
             "+ Add Property",
             'Primary.TButton',
-            self.show_add_property_dialog
+            self.show_add_property_form
         )
         add_property_btn.pack(side='left')
         
@@ -477,19 +477,18 @@ class ModernUI(ttk.Frame):
         
         self.load_properties()
 
-    def show_add_property_dialog(self):
-        """Dialog to add a new property"""
-        dialog = tk.Toplevel(self)
-        dialog.title("Add Property")
-        dialog.geometry("400x300")
-        dialog.configure(bg=self.colors['white'])
+    def show_add_property_form(self):
+        """Show property form integrated in the main window"""
+        self.clear_content()
+        self.create_page_header("Add Property", "Enter new property details")
         
-        dialog.transient(self)
-        dialog.grab_set()
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
         # Form container
-        form_frame = ttk.Frame(dialog, style='Card.TFrame')
-        form_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        form_frame = ttk.Frame(container, style='Card.TFrame')
+        form_frame.pack(fill='x', padx=20, pady=20)
         
         # Address field
         ttk.Label(form_frame,
@@ -503,17 +502,9 @@ class ModernUI(ttk.Frame):
                                 width=40)
         address_entry.pack(fill='x')
         
-        # Additional property details if needed
-        # ...
-        
         # Buttons
-        button_frame = ttk.Frame(dialog, style='Card.TFrame')
-        button_frame.pack(fill='x', padx=20, pady=(0, 20))
-        
-        ttk.Button(button_frame,
-                  text="Cancel",
-                  style='Secondary.TButton',
-                  command=dialog.destroy).pack(side='left')
+        button_frame = ttk.Frame(form_frame, style='Card.TFrame')
+        button_frame.pack(fill='x', pady=(20, 0))
         
         def save_property():
             address = address_var.get().strip()
@@ -523,15 +514,35 @@ class ModernUI(ttk.Frame):
                 
             try:
                 self.api_client.add_property({'address': address})
-                dialog.destroy()
-                self.load_properties()
+                self.show_properties()  # Return to properties list
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to add property: {str(e)}")
         
-        ttk.Button(button_frame,
-                  text="Save Property",
-                  style='Primary.TButton',
-                  command=save_property).pack(side='right')
+        # Cancel button (burgundy filled)
+        cancel_btn = tk.Button(button_frame,
+                              text="Cancel",
+                              font=('Segoe UI', 11, 'bold'),
+                              fg=self.colors['white'],
+                              bg=self.colors['button_primary'],
+                              activebackground=self.colors['button_primary_hover'],
+                              activeforeground=self.colors['white'],
+                              relief='flat',
+                              cursor='hand2',
+                              command=self.show_properties)
+        cancel_btn.pack(side='left', padx=(0, 10))
+        
+        # Save button (burgundy filled)
+        save_btn = tk.Button(button_frame,
+                            text="Save Property",
+                            font=('Segoe UI', 11, 'bold'),
+                            fg=self.colors['white'],
+                            bg=self.colors['button_primary'],
+                            activebackground=self.colors['button_primary_hover'],
+                            activeforeground=self.colors['white'],
+                            relief='flat',
+                            cursor='hand2',
+                            command=save_property)
+        save_btn.pack(side='right')
 
     def load_properties(self):
         """Load and display properties"""
@@ -878,6 +889,20 @@ class ModernUI(ttk.Frame):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete tour: {str(e)}")
 
+    def delete_property(self, property_id):
+        """Delete a property with confirmation"""
+        if messagebox.askyesno("Confirm Delete", 
+                              "Are you sure you want to delete this property? This cannot be undone."):
+            try:
+                if self.api_client.delete_property(property_id):
+                    self.load_properties()  # Refresh the properties list
+                else:
+                    messagebox.showerror("Error", 
+                                       "Failed to delete property. It may have associated tours.")
+            except Exception as e:
+                messagebox.showerror("Error", 
+                                   f"Failed to delete property: {str(e)}")
+
     def show_loading(self, parent, message="Loading..."):
         """Show loading indicator"""
         loading_frame = tk.Frame(parent, bg=self.colors['white'])
@@ -917,35 +942,23 @@ class ModernUI(ttk.Frame):
         return error_frame
 
     def create_styled_button(self, parent, text, style, command):
-        """Create a styled button with consistent appearance"""
-        if style == 'Primary.TButton':
-            bg_color = self.colors['button_primary']
-            hover_color = self.colors['button_primary_hover']
-        elif style == 'Secondary.TButton':
-            bg_color = self.colors['button_secondary']
-            hover_color = self.colors['button_secondary_hover']
-        else:  # Danger
-            bg_color = self.colors['button_danger']
-            hover_color = self.colors['button_danger_hover']
-        
+        """Create a styled button with consistent burgundy appearance"""
         button = tk.Button(parent,
                           text=text,
                           font=('Segoe UI', 11, 'bold'),
                           fg=self.colors['white'],
-                          bg=bg_color,
-                          activebackground=hover_color,
+                          bg=self.colors['button_primary'],
+                          activebackground=self.colors['button_primary_hover'],
                           activeforeground=self.colors['white'],
                           relief='flat',
-                          padx=20,
-                          pady=12,
                           cursor='hand2',
                           command=command)
         
         def on_enter(e):
-            button['background'] = hover_color
+            button['background'] = self.colors['button_primary_hover']
             
         def on_leave(e):
-            button['background'] = bg_color
+            button['background'] = self.colors['button_primary']
         
         button.bind('<Enter>', on_enter)
         button.bind('<Leave>', on_leave)
