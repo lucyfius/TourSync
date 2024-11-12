@@ -9,8 +9,8 @@ class APIError(Exception):
         super().__init__(self.message)
 
 class TourAPIClient:
-    def __init__(self):
-        self.base_url = API_BASE_URL
+    def __init__(self, base_url="http://localhost:5000/api"):
+        self.base_url = base_url
         self.session = requests.Session()
     
     def _handle_request_error(self, error, action):
@@ -80,12 +80,9 @@ class TourAPIClient:
     def get_properties(self):
         """Get all properties"""
         try:
-            response = requests.get(f"{self.base_url}/properties")
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"Error fetching properties: {response.text}")
-                return []
+            response = self.session.get(f"{self.base_url}/properties")
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             print(f"Error fetching properties: {str(e)}")
             return []
@@ -93,41 +90,33 @@ class TourAPIClient:
     def add_property(self, property_data):
         """Add a new property"""
         try:
-            response = requests.post(f"{self.base_url}/properties", json=property_data)
-            if response.status_code == 201:
-                return response.json()
-            else:
-                print(f"Error adding property: {response.text}")
-                return None
+            response = self.session.post(f"{self.base_url}/properties", json=property_data)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             print(f"Error adding property: {str(e)}")
-            return None
+            raise
 
     def delete_property(self, property_id):
         """Delete a property"""
         try:
-            response = requests.delete(f"{self.base_url}/properties/{property_id}")
-            if response.status_code == 200:
-                return True
-            else:
-                print(f"Error deleting property: {response.text}")
-                return False
+            response = self.session.delete(f"{self.base_url}/properties/{property_id}")
+            response.raise_for_status()
+            return True
         except Exception as e:
             print(f"Error deleting property: {str(e)}")
             return False
 
     def update_property(self, property_id, property_data):
-        """Update an existing property"""
+        """Update a property"""
         try:
-            response = requests.put(f"{self.base_url}/properties/{property_id}", json=property_data)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"Error updating property: {response.text}")
-                return None
+            response = self.session.put(f"{self.base_url}/properties/{property_id}", 
+                                      json=property_data)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             print(f"Error updating property: {str(e)}")
-            return None
+            raise
 
     def add_tour(self, tour_data):
         """Add a new tour"""

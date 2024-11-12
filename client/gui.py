@@ -1,33 +1,38 @@
 import tkinter as tk
-from tkinter import ttk
-from api_client import TourAPIClient
+from tkinter import ttk, messagebox
 from datetime import datetime
-from tkcalendar import DateEntry
-from PIL import Image, ImageTk
-import os
-from tkinter import messagebox
+import tkcalendar
+from api_client import TourAPIClient
 
 class ModernUI(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.api_client = TourAPIClient()
         
-        # Initialize colors first
+        # Initialize API client
+        self.api_client = TourAPIClient()  # Uses default base_url
+        # Or if you need a specific URL:
+        # self.api_client = TourAPIClient("http://localhost:5000/api")
+        
+        # Modern color scheme with burgundy
         self.colors = {
-            'bg': '#F8FAFC',           # Background
-            'sidebar': '#1E293B',       # Dark sidebar
-            'sidebar_hover': '#334155', 
-            'sidebar_active': '#2563EB',
-            'white': '#FFFFFF',         # Card background
-            'text': '#0F172A',          # Headers
-            'text_secondary': '#475569', # Labels
-            'text_light': '#E2E8F0',    # Light text for sidebar
-            'border': '#E2E8F0',        # Subtle borders
-            'primary': '#2563EB',       # Primary action
-            'primary_hover': '#1D4ED8',
-            'success': '#059669',
-            'error': '#DC2626'
+            'bg': '#F5F5F5',           # Light gray background
+            'sidebar': '#2C2C2C',       # Dark gray sidebar
+            'sidebar_hover': '#3D3D3D', 
+            'sidebar_active': '#8B1F2F', # Burgundy active state
+            'white': '#FFFFFF',         # Pure white
+            'text': '#1A1A1A',          # Near black for text
+            'text_secondary': '#4A4A4A', # Medium gray for secondary text
+            'text_light': '#E8E8E8',    # Light gray text for dark backgrounds
+            'border': '#E0E0E0',        # Light gray borders
+            'button_primary': '#8B1F2F',      # Burgundy for primary buttons
+            'button_primary_hover': '#721A26', # Darker burgundy for hover
+            'button_secondary': '#4A4A4A',    # Dark gray for secondary buttons
+            'button_secondary_hover': '#3D3D3D', # Darker gray for hover
+            'button_danger': '#8B1F2F',       # Changed to match burgundy
+            'button_danger_hover': '#721A26',  # Changed to match burgundy hover
+            'success': '#2D5A27',       # Dark green
+            'error': '#D32F2F'          # Using same red as button_danger
         }
         
         # Initialize variables
@@ -37,6 +42,9 @@ class ModernUI(ttk.Frame):
         self.setup_styles()
         self.create_layout()
         
+        # Show default view
+        self.show_dashboard()
+
     def init_variables(self):
         """Initialize all necessary variables"""
         self.tours = []
@@ -45,83 +53,75 @@ class ModernUI(ttk.Frame):
         self.client_name_var = tk.StringVar()
         self.phone_var = tk.StringVar()
         self.time_var = tk.StringVar()
-        
+        self.current_view = None
+        self.nav_buttons = []
+
     def setup_styles(self):
         """Setup sophisticated UI styles"""
         self.style = ttk.Style()
         
-        # Enhanced color scheme
-        self.colors = {
-            'bg': '#F8FAFC',           # Background
-            'sidebar': '#1E293B',       # Dark sidebar
-            'sidebar_hover': '#334155', 
-            'sidebar_active': '#2563EB',
-            'white': '#FFFFFF',         # Card background
-            'text': '#0F172A',          # Headers
-            'text_secondary': '#475569', # Labels
-            'text_light': '#E2E8F0',    # Light text for sidebar
-            'border': '#E2E8F0',        # Subtle borders
-            'primary': '#2563EB',       # Primary action
-            'primary_hover': '#1D4ED8',
-            'success': '#059669',
-            'error': '#DC2626'
-        }
-
         # Frame styles
         self.style.configure('Card.TFrame',
-                            background=self.colors['white'],
-                            relief='flat')
-
+                           background=self.colors['white'],
+                           relief='flat')
+        
         # Typography
         self.style.configure('Header.TLabel',
-                            background=self.colors['white'],
-                            foreground=self.colors['text'],
-                            font=('Segoe UI', 28, 'bold'))
-                        
+                           background=self.colors['white'],
+                           foreground=self.colors['text'],
+                           font=('Segoe UI', 28, 'bold'))
+                           
         self.style.configure('SubHeader.TLabel',
-                            background=self.colors['white'],
-                            foreground=self.colors['text'],
-                            font=('Segoe UI', 20, 'bold'))
-
-        self.style.configure('FieldLabel.TLabel',
-                            background=self.colors['white'],
-                            foreground=self.colors['text_secondary'],
-                            font=('Segoe UI', 12))
-
-        # Modern entry style
-        self.style.configure('Modern.TEntry',
-                            fieldbackground=self.colors['white'],
-                            bordercolor=self.colors['border'],
-                            borderwidth=1,
-                            relief='solid',
-                            padding=10)
-
-        # Configure focused entry style
-        self.style.map('Modern.TEntry',
-                       bordercolor=[('focus', self.colors['primary'])],
-                       lightcolor=[('focus', self.colors['primary'])],
-                       darkcolor=[('focus', self.colors['primary'])])
-
-        # Button styles
+                           background=self.colors['white'],
+                           foreground=self.colors['text'],
+                           font=('Segoe UI', 20, 'bold'))
+        
+        self.style.configure('Body.TLabel',
+                           background=self.colors['white'],
+                           foreground=self.colors['text'],
+                           font=('Segoe UI', 12))
+                           
+        # Primary button style (Burgundy fill)
         self.style.configure('Primary.TButton',
-                            font=('Segoe UI', 12, 'bold'),
-                            background=self.colors['primary'],
+                            font=('Segoe UI', 11, 'bold'),
+                            background=self.colors['button_primary'],
+                            foreground=self.colors['white'],
+                            padding=(20, 12),
+                            relief='flat')
+        
+        self.style.map('Primary.TButton',
+                       background=[('active', self.colors['button_primary_hover'])],
+                       foreground=[('active', self.colors['white'])])
+        
+        # Secondary button style (Dark gray fill)
+        self.style.configure('Secondary.TButton',
+                            font=('Segoe UI', 11),
+                            background=self.colors['button_secondary'],
+                            foreground=self.colors['white'],
+                            padding=(20, 12),
+                            relief='flat')
+        
+        self.style.map('Secondary.TButton',
+                       background=[('active', self.colors['button_secondary_hover'])],
+                       foreground=[('active', self.colors['white'])])
+        
+        # Danger button style (now matching burgundy)
+        self.style.configure('Danger.TButton',
+                            font=('Segoe UI', 11),
+                            background=self.colors['button_danger'],
                             foreground='white',
                             padding=(20, 12),
                             borderwidth=0,
                             relief='flat')
-                        
-        self.style.map('Primary.TButton',
-                       background=[('active', self.colors['primary_hover'])])
 
-        # Sidebar styles
-        self.style.configure('Sidebar.TFrame',
-                            background=self.colors['sidebar'])
-                        
-        self.style.configure('SidebarItem.TLabel',
-                            background=self.colors['sidebar'],
-                            foreground=self.colors['white'],
-                            font=('Segoe UI', 13))
+        self.style.map('Danger.TButton',
+                       background=[('active', self.colors['button_danger_hover'])],
+                       foreground=[('active', 'white')])
+
+        # Apply rounded corners and shadow to all button styles
+        for style in ['Primary.TButton', 'Secondary.TButton', 'Danger.TButton']:
+            self.style.configure(style, borderradius=8)
+            self.style.configure(style, borderwidth=1, relief='solid', bordercolor='#00000022')
 
     def create_layout(self):
         """Create main application layout"""
@@ -129,38 +129,40 @@ class ModernUI(ttk.Frame):
         self.main_container = tk.Frame(self, bg=self.colors['bg'])
         self.main_container.pack(fill='both', expand=True)
         
-        # Create sidebar first and fix its width
+        # Create sidebar
         self.create_sidebar()
         
         # Create content area
         self.content = tk.Frame(self.main_container, bg=self.colors['bg'])
         self.content.pack(side='left', fill='both', expand=True)
-        
-        # Create main content
-        self.create_content()
 
     def create_sidebar(self):
-        """Create modern sidebar with icons"""
-        # Fixed width sidebar
-        self.sidebar = tk.Frame(self.main_container, bg=self.colors['sidebar'], width=250)
+        """Create modern sidebar"""
+        self.sidebar = tk.Frame(self.main_container, bg=self.colors['sidebar'], width=280)
         self.sidebar.pack(side='left', fill='y')
-        self.sidebar.pack_propagate(False)  # Prevent sidebar from shrinking
+        self.sidebar.pack_propagate(False)
         
         # App title
         title_frame = tk.Frame(self.sidebar, bg=self.colors['sidebar'])
-        title_frame.pack(fill='x', pady=(25, 40), padx=25)
+        title_frame.pack(fill='x', pady=(30, 50), padx=25)
         
+        tk.Label(title_frame,
+                text="🏠",
+                font=('Segoe UI', 24),
+                fg=self.colors['button_primary'],
+                bg=self.colors['sidebar']).pack(side='left', padx=(0, 10))
+                
         tk.Label(title_frame,
                 text="TourSync",
                 font=('Segoe UI', 24, 'bold'),
                 fg=self.colors['text_light'],
-                bg=self.colors['sidebar']).pack(anchor='w')
+                bg=self.colors['sidebar']).pack(side='left')
 
-        # Navigation items with icons and commands
+        # Navigation items
         nav_items = [
             ('Dashboard', '📊', self.show_dashboard),
             ('Tours', '🗓️', self.show_tours),
-            ('Properties', '🏠', self.show_properties),
+            ('Properties', '🏘️', self.show_properties),
             ('Reports', '📈', self.show_reports),
             ('Settings', '⚙️', self.show_settings)
         ]
@@ -169,382 +171,194 @@ class ModernUI(ttk.Frame):
             self.create_nav_item(text, icon, command)
 
     def create_nav_item(self, text, icon, command):
-        """Create polished navigation item with functionality"""
-        frame = tk.Frame(self.sidebar, bg=self.colors['sidebar'])
-        frame.pack(fill='x', pady=2)
+        """Create navigation item with modern styling"""
+        btn = tk.Frame(self.sidebar, bg=self.colors['sidebar'], cursor='hand2')
+        btn.pack(fill='x', pady=2)
         
-        # Content container with padding
-        content = tk.Frame(frame, bg=self.colors['sidebar'])
-        content.pack(fill='x', padx=(25, 20), pady=12)
+        # Icon and text container
+        content = tk.Frame(btn, bg=self.colors['sidebar'])
+        content.pack(fill='x', padx=25, pady=12)
         
-        # Icon and text
-        icon_label = tk.Label(content,
-                             text=icon,
-                             font=('Segoe UI', 16),
-                             fg=self.colors['text_light'],
-                             bg=self.colors['sidebar'])
-        icon_label.pack(side='left', padx=(0, 12))
+        # Icon
+        tk.Label(content,
+                text=icon,
+                font=('Segoe UI', 16),
+                fg=self.colors['text_light'],
+                bg=self.colors['sidebar']).pack(side='left', padx=(0, 12))
         
-        text_label = tk.Label(content,
-                             text=text,
-                             font=('Segoe UI', 13),
-                             fg=self.colors['text_light'],
-                             bg=self.colors['sidebar'])
-        text_label.pack(side='left')
-        
-        # Bind click event
-        for widget in [frame, content, icon_label, text_label]:
-            widget.bind('<Button-1>', lambda e: command())
+        # Text
+        tk.Label(content,
+                text=text,
+                font=('Segoe UI', 12),
+                fg=self.colors['text_light'],
+                bg=self.colors['sidebar']).pack(side='left')
         
         # Hover effects
         def on_enter(e):
-            frame.configure(bg=self.colors['sidebar_hover'])
-            content.configure(bg=self.colors['sidebar_hover'])
-            icon_label.configure(bg=self.colors['sidebar_hover'])
-            text_label.configure(bg=self.colors['sidebar_hover'])
-                
+            if btn not in self.nav_buttons or btn != self.current_view:
+                btn.configure(bg=self.colors['sidebar_hover'])
+                content.configure(bg=self.colors['sidebar_hover'])
+                for widget in content.winfo_children():
+                    widget.configure(bg=self.colors['sidebar_hover'])
+
         def on_leave(e):
-            frame.configure(bg=self.colors['sidebar'])
-            content.configure(bg=self.colors['sidebar'])
-            icon_label.configure(bg=self.colors['sidebar'])
-            text_label.configure(bg=self.colors['sidebar'])
-        
-        for widget in [frame, content, icon_label, text_label]:
+            if btn not in self.nav_buttons or btn != self.current_view:
+                btn.configure(bg=self.colors['sidebar'])
+                content.configure(bg=self.colors['sidebar'])
+                for widget in content.winfo_children():
+                    widget.configure(bg=self.colors['sidebar'])
+
+        def on_click(e):
+            self.set_active_nav(btn)
+            command()
+
+        btn.bind('<Enter>', on_enter)
+        btn.bind('<Leave>', on_leave)
+        btn.bind('<Button-1>', on_click)
+        for widget in content.winfo_children():
+            widget.bind('<Button-1>', on_click)
             widget.bind('<Enter>', on_enter)
             widget.bind('<Leave>', on_leave)
 
-    # Navigation functions
-    def show_dashboard(self):
-        """Show dashboard with all tours"""
-        self.clear_content()
-        
-        # Main container
-        container = tk.Frame(self.content, bg=self.colors['white'])
-        container.pack(fill='both', expand=True, padx=40, pady=30)
-        
-        # Header
-        header = tk.Frame(container, bg=self.colors['white'])
-        header.pack(fill='x', pady=(0, 30))
-        
-        tk.Label(header,
-                text="Dashboard",
-                font=('Segoe UI', 28, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(side='left')
-        
-        ttk.Button(header,
-                  text="↻ Refresh",
-                  style='Secondary.TButton',
-                  command=lambda: self.show_dashboard()).pack(side='right')
-        
-        # Create scrollable frame for tours
-        tours_frame = tk.Frame(container, bg=self.colors['white'])
-        tours_frame.pack(fill='both', expand=True)
-        
-        # Display tours in the frame
-        self.display_tours(tours_frame)
+        self.nav_buttons.append(btn)
 
-    def show_tours(self):
-        """Show tours view"""
-        self.clear_content()
-        self.create_content()  # This shows the tours/schedule view
-
-    def show_properties(self):
-        """Show properties management interface"""
-        self.clear_content()
+    def set_active_nav(self, active_btn):
+        """Set active navigation item"""
+        for btn in self.nav_buttons:
+            if btn == active_btn:
+                btn.configure(bg=self.colors['sidebar_active'])
+                for widget in btn.winfo_children():
+                    widget.configure(bg=self.colors['sidebar_active'])
+                    for w in widget.winfo_children():
+                        w.configure(bg=self.colors['sidebar_active'])
+            else:
+                btn.configure(bg=self.colors['sidebar'])
+                for widget in btn.winfo_children():
+                    widget.configure(bg=self.colors['sidebar'])
+                    for w in widget.winfo_children():
+                        w.configure(bg=self.colors['sidebar'])
         
-        # Main container
-        container = tk.Frame(self.content, bg=self.colors['white'])
-        container.pack(fill='both', expand=True, padx=40, pady=30)
-        
-        # Header with add property button
-        header_frame = tk.Frame(container, bg=self.colors['white'])
-        header_frame.pack(fill='x', pady=(0, 30))
-        
-        tk.Label(header_frame,
-                text="Properties",
-                font=('Segoe UI', 28, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(side='left')
-                
-        ttk.Button(header_frame,
-                  text="+ Add Property",
-                  style='Primary.TButton',
-                  command=self.show_add_property_dialog).pack(side='right')
-        
-        # Properties list container with scrollbar
-        list_frame = tk.Frame(container, bg=self.colors['white'])
-        list_frame.pack(fill='both', expand=True)
-        
-        # Create canvas for scrolling
-        canvas = tk.Canvas(list_frame, bg=self.colors['white'])
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
-        self.properties_frame = tk.Frame(canvas, bg=self.colors['white'])
-        
-        # Configure canvas
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Pack scrollbar and canvas
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        
-        # Create window in canvas
-        canvas_frame = canvas.create_window((0, 0), window=self.properties_frame, anchor="nw")
-        
-        # Configure canvas scrolling
-        def configure_scroll_region(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        self.properties_frame.bind('<Configure>', configure_scroll_region)
-        
-        # Load properties
-        self.load_properties()
-
-    def load_properties(self):
-        """Load and display properties"""
-        # Clear existing properties
-        for widget in self.properties_frame.winfo_children():
-            widget.destroy()
-            
-        properties = self.api_client.get_properties()
-        
-        if not properties:
-            ttk.Label(self.properties_frame,
-                     text="No properties found",
-                     style='FormLabel.TLabel').pack(pady=20)
-            return
-            
-        # Display properties
-        for prop in properties:
-            self.create_property_card(self.properties_frame, prop)
-
-    def show_reports(self):
-        """Show reports view"""
-        self.clear_content()
-        
-        # Main container for reports
-        container = tk.Frame(self.content, bg=self.colors['white'])
-        container.pack(fill='both', expand=True, padx=40, pady=30)
-        
-        # Header
-        tk.Label(container,
-                text="Reports",
-                font=('Segoe UI', 28, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 30))
-        
-        # Reports options
-        reports = [
-            ("Tour Activity", "View tour statistics and trends"),
-            ("Property Performance", "Analyze property viewing metrics"),
-            ("Client Analytics", "Review client engagement data")
-        ]
-        
-        for title, description in reports:
-            self.create_report_card(container, title, description)
-
-    def show_settings(self):
-        """Show settings view"""
-        self.clear_content()
-        
-        # Main container for settings
-        container = tk.Frame(self.content, bg=self.colors['white'])
-        container.pack(fill='both', expand=True, padx=40, pady=30)
-        
-        # Header
-        tk.Label(container,
-                text="Settings",
-                font=('Segoe UI', 28, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 30))
-        
-        # Settings sections
-        settings = [
-            ("Profile", "Manage your account information"),
-            ("Notifications", "Configure alert preferences"),
-            ("API Settings", "Manage API keys and endpoints"),
-            ("Theme", "Customize application appearance")
-        ]
-        
-        for title, description in settings:
-            self.create_settings_card(container, title, description)
+        self.current_view = active_btn
 
     def clear_content(self):
-        """Clear current content"""
+        """Clear content area"""
         for widget in self.content.winfo_children():
             widget.destroy()
 
-    def create_content(self):
-        """Create refined content area"""
-        # Main content container with padding
-        content_frame = ttk.Frame(self.content, style='Main.TFrame')
-        content_frame.pack(fill='both', expand=True, padx=40, pady=30)
+    def create_page_header(self, title, description=None):
+        """Create consistent page header"""
+        header_frame = ttk.Frame(self.content, style='Card.TFrame')
+        header_frame.pack(fill='x', padx=30, pady=30)
         
-        # Schedule Tour card
-        schedule_card = ttk.Frame(content_frame, style='Card.TFrame')
-        schedule_card.pack(fill='x', padx=2, pady=2)
+        ttk.Label(header_frame,
+                 text=title,
+                 style='Header.TLabel').pack(anchor='w')
         
-        # Add subtle shadow effect
-        self.add_shadow(schedule_card)
-        
-        # Create schedule form
-        self.create_schedule_section(schedule_card)
-        
-        # Upcoming Tours card
-        tours_card = ttk.Frame(content_frame, style='Card.TFrame')
-        tours_card.pack(fill='both', expand=True, padx=2, pady=(30, 2))
-        
-        # Add subtle shadow effect
-        self.add_shadow(tours_card)
-        
-        # Create tours section
-        self.create_tours_section(tours_card)
+        if description:
+            ttk.Label(header_frame,
+                     text=description,
+                     style='Body.TLabel').pack(anchor='w', pady=(10, 0))
 
-    def create_schedule_section(self, parent):
-        """Create polished schedule form section"""
-        container = ttk.Frame(parent, style='Card.TFrame')
-        container.pack(fill='both', expand=True, padx=40, pady=30)
+    def show_dashboard(self):
+        """Show dashboard view"""
+        self.clear_content()
+        self.create_page_header("Dashboard", "Welcome to TourSync")
         
-        # Section header
-        ttk.Label(container,
-                 text="Schedule Tour",
-                 style='Header.TLabel').pack(anchor='w', pady=(0, 40))
+        # Dashboard content here...
+
+    def show_tours(self):
+        """Show tours view with management functionality"""
+        self.clear_content()
+        self.create_page_header("Tours", "Manage your property tours")
         
-        # Form grid
-        form_grid = ttk.Frame(container, style='Card.TFrame')
-        form_grid.pack(fill='x', pady=(0, 30))
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
-        # Form fields with consistent spacing
-        fields = [
-            ("Property ID", self.property_var),
-            ("Client Name", self.client_name_var),
-            ("Phone Number", self.phone_var)
-        ]
+        # Add tour button with new styling
+        btn_frame = ttk.Frame(container, style='Card.TFrame')
+        btn_frame.pack(fill='x', padx=20, pady=20)
         
-        for label, var in fields:
-            self.create_form_field(form_grid, label, var)
-        
-        # Date and time container
-        datetime_frame = ttk.Frame(form_grid, style='Card.TFrame')
-        datetime_frame.pack(fill='x', pady=(0, 20))
-        
-        # Modern date picker
-        date_container = ttk.Frame(datetime_frame, style='Card.TFrame')
-        date_container.pack(fill='x', pady=(0, 15))
-        
-        ttk.Label(date_container,
-                 text="Date",
-                 style='FieldLabel.TLabel').pack(anchor='w', pady=(0, 8))
-                 
-        self.date_picker = DateEntry(
-            date_container,
-            width=30,
-            font=('Segoe UI', 12),
-            borderwidth=0,
-            background=self.colors['white'],
-            foreground=self.colors['text'],
-            selectbackground=self.colors['primary'],
-            selectforeground=self.colors['white']
+        schedule_btn = self.create_styled_button(
+            btn_frame,
+            "+ Schedule New Tour",
+            'Primary.TButton',
+            self.show_add_tour
         )
-        self.date_picker.pack(fill='x')
+        schedule_btn.pack(side='left')
         
-        # Time field
-        self.create_form_field(form_grid, "Time (HH:MM)", self.time_var)
+        # Tours list
+        self.tours_list = ttk.Frame(container, style='Card.TFrame')
+        self.tours_list.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
-        # Button container
-        button_container = ttk.Frame(form_grid, style='Card.TFrame')
-        button_container.pack(fill='x', pady=(20, 0))
+        self.load_tours()
+
+    def create_tour_card(self, parent, tour):
+        """Create individual tour card with status indicator"""
+        card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
+        card.pack(fill='x', pady=8, padx=2)
         
-        ttk.Button(button_container,
-                  text="Schedule Tour →",
-                  style='Primary.TButton',
-                  command=self.submit_tour).pack(side='right')
-
-    def create_form_field(self, parent, label, variable):
-        """Create sophisticated form field"""
-        container = tk.Frame(parent, bg=self.colors['white'])
-        container.pack(fill='x', pady=(0, 20))
+        # Status indicator
+        status = tour.get('status', 'scheduled')
+        status_colors = {
+            'scheduled': '#FFB74D',  # Orange
+            'completed': '#81C784',  # Green
+            'cancelled': '#E57373',  # Red
+            'no_show': '#9575CD'    # Purple
+        }
         
-        # Label
-        label_widget = tk.Label(container,
-                               text=label,
-                               font=('Segoe UI', 12),
-                               fg=self.colors['text_secondary'],
-                               bg=self.colors['white'])
-        label_widget.pack(anchor='w', pady=(0, 5))
+        status_bar = tk.Frame(card,
+                             bg=status_colors.get(status, self.colors['button_primary']),
+                             height=4)
+        status_bar.pack(fill='x')
         
-        # Entry with modern styling
-        entry = ttk.Entry(container,
-                         textvariable=variable,
-                         style='Modern.TEntry')
-        entry.pack(fill='x')
+        content = tk.Frame(card, bg=self.colors['white'])
+        content.pack(fill='x', padx=20, pady=15)
         
-        # Focus effects
-        def on_focus_in(e):
-            label_widget.configure(fg=self.colors['primary'])
+        # Tour info
+        tk.Label(content,
+                text=f"📅 {tour.get('date', 'N/A')} at {tour.get('time', 'N/A')}",
+                font=('Segoe UI', 14, 'bold'),
+                fg=self.colors['text'],
+                bg=self.colors['white']).pack(anchor='w')
         
-        def on_focus_out(e):
-            label_widget.configure(fg=self.colors['text_secondary'])
+        tk.Label(content,
+                text=f"🏠 {tour.get('property_address', tour.get('property_id', 'N/A'))}",
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack(anchor='w', pady=(10, 0))
         
-        entry.bind('<FocusIn>', on_focus_in)
-        entry.bind('<FocusOut>', on_focus_out)
+        tk.Label(content,
+                text=f"👤 {tour.get('client_name', 'N/A')}",
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
         
-        return entry
-
-    def on_nav_hover(self, event, frame):
-        """Handle navigation item hover effect"""
-        if event.type == '7': # Enter
-            frame.configure(style='SidebarHover.TFrame')
-        else: # Leave
-            frame.configure(style='Sidebar.TFrame')
-
-    def submit_tour(self):
-        """Handle tour submission"""
-        try:
-            # Get form values
-            property_id = self.property_var.get().strip()
-            client_name = self.client_name_var.get().strip()
-            phone_number = self.phone_var.get().strip()
-            date = self.date_picker.get_date()
-            time = self.time_var.get().strip()
-
-            # Validate inputs
-            if not all([property_id, client_name, phone_number, time]):
-                messagebox.showerror("Error", "All fields are required")
-                return
-
-            # Create datetime
-            try:
-                hour, minute = map(int, time.split(':'))
-                tour_datetime = datetime.combine(date, datetime.min.time().replace(hour=hour, minute=minute))
-            except ValueError:
-                messagebox.showerror("Error", "Invalid time format. Use HH:MM")
-                return
-
-            # Submit to API
-            response = self.api_client.create_tour(
-                property_id=property_id,
-                tour_time=tour_datetime,
-                client_name=client_name,
-                phone_number=phone_number
-            )
-
-            if response:
-                messagebox.showinfo("Success", "Tour scheduled successfully!")
-                self.clear_form()
-                self.load_tours()
-            else:
-                messagebox.showerror("Error", "Failed to schedule tour")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
-
-    def clear_form(self):
-        """Clear all form fields"""
-        self.property_var.set("")
-        self.client_name_var.set("")
-        self.phone_var.set("")
-        self.time_var.set("")
-        self.date_picker.set_date(datetime.now())
+        tk.Label(content,
+                text=f"📱 {tour.get('phone_number', 'N/A')}",
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
+        
+        # Actions
+        actions = tk.Frame(content, bg=self.colors['white'])
+        actions.pack(anchor='w', pady=(15, 0))
+        
+        edit_btn = self.create_styled_button(
+            actions, 
+            "Edit", 
+            'Secondary.TButton',
+            lambda: self.edit_tour(tour)
+        )
+        edit_btn.pack(side='left', padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            actions, 
+            "Delete", 
+            'Danger.TButton',
+            lambda: self.delete_tour(tour)
+        )
+        delete_btn.pack(side='left')
 
     def load_tours(self):
         """Load and display tours"""
@@ -559,7 +373,7 @@ class ModernUI(ttk.Frame):
             if not tours:
                 ttk.Label(self.tours_list,
                          text="No tours scheduled",
-                         style='FormLabel.TLabel').pack(pady=20)
+                         style='Body.TLabel').pack(pady=20)
                 return
             
             # Sort tours by date and time
@@ -571,286 +385,142 @@ class ModernUI(ttk.Frame):
                 
         except Exception as e:
             print(f"Failed to load tours: {str(e)}")
-            error_frame = ttk.Frame(self.tours_list)
-            error_frame.pack(fill='x', pady=20)
-            
-            ttk.Label(error_frame,
-                     text="⚠️ Unable to load tours",
-                     style='Error.TLabel').pack(anchor='w')
-                     
-            ttk.Label(error_frame,
-                     text="Please check your connection and try again.",
-                     style='FormLabel.TLabel').pack(anchor='w', pady=(5, 10))
-                     
-            ttk.Button(error_frame,
-                      text="Try Again",
-                      style='Primary.TButton',
-                      command=self.refresh_dashboard).pack(anchor='w')
+            self.show_error_message("Unable to load tours", 
+                                  "Please check your connection and try again.")
 
-    def create_tours_section(self, parent):
-        """Create tours section with scrollable list"""
-        # Section header
-        header_frame = ttk.Frame(parent, style='Card.TFrame')
-        header_frame.pack(fill='x', padx=30, pady=(30, 20))
+    def show_error_message(self, title, message):
+        """Show error message with modern styling"""
+        error_frame = tk.Frame(self.tours_list, bg=self.colors['white'])
+        error_frame.pack(fill='x', pady=20)
         
-        ttk.Label(header_frame,
-                 text="Upcoming Tours",
-                 style='Header.TLabel').pack(side='left')
+        tk.Label(error_frame,
+                text=f"⚠️ {title}",
+                font=('Segoe UI', 12, 'bold'),
+                fg=self.colors['error'],
+                bg=self.colors['white']).pack(anchor='w')
+                
+        tk.Label(error_frame,
+                text=message,
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack(anchor='w', pady=(5, 10))
+                
+        ttk.Button(error_frame,
+                  text="Try Again",
+                  style='Primary.TButton',
+                  command=self.load_tours).pack(anchor='w')
+
+    # Add other view methods (show_properties, show_reports, show_settings)
+    def show_properties(self):
+        """Show properties view with management functionality"""
+        self.clear_content()
+        self.create_page_header("Properties", "Manage your properties")
         
-        # Create scrollable frame
-        container = ttk.Frame(parent, style='Card.TFrame')
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
         container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
-        # Add scrollbar
-        canvas = tk.Canvas(container, bg=self.colors['white'])
-        scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
+        # Add property button
+        btn_frame = ttk.Frame(container, style='Card.TFrame')
+        btn_frame.pack(fill='x', padx=20, pady=20)
         
-        # Create frame for tours and assign it to self.tours_list
-        self.tours_list = ttk.Frame(canvas, style='Card.TFrame')
-        self.tours_list.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        add_property_btn = self.create_styled_button(
+            btn_frame,
+            "+ Add Property",
+            'Primary.TButton',
+            self.show_add_property_dialog
+        )
+        add_property_btn.pack(side='left')
         
-        canvas.create_window((0, 0), window=self.tours_list, anchor='nw', width=canvas.winfo_width())
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # Properties list
+        self.properties_list = ttk.Frame(container, style='Card.TFrame')
+        self.properties_list.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
-        scrollbar.pack(side='right', fill='y')
-        canvas.pack(side='left', fill='both', expand=True)
-        
-        # Load tours
-        self.display_tours(self.tours_list)  # Changed from tours_frame to self.tours_list
-
-    def create_tour_card(self, parent, tour):
-        """Create individual tour card"""
-        try:
-            card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
-            card.pack(fill='x', pady=8, padx=2)
-            
-            content = tk.Frame(card, bg=self.colors['white'])
-            content.pack(fill='x', padx=20, pady=15)
-            
-            # Date and time
-            tk.Label(content,
-                    text=f"📅 {tour.get('date', 'N/A')} at {tour.get('time', 'N/A')}",
-                    font=('Segoe UI', 14, 'bold'),
-                    fg=self.colors['text'],
-                    bg=self.colors['white']).pack(anchor='w')
-            
-            # Property address
-            tk.Label(content,
-                    text=f"🏠 {tour.get('property_address', tour.get('property_id', 'N/A'))}",
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(10, 0))
-            
-            # Client info
-            tk.Label(content,
-                    text=f"👤 {tour.get('client_name', 'N/A')}",
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-            
-            # Phone number
-            tk.Label(content,
-                    text=f"📱 {tour.get('phone_number', 'N/A')}",
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-            
-            # Cancel button
-            ttk.Button(content,
-                      text="Cancel Tour",
-                      style='Danger.TButton',
-                      command=lambda: self.cancel_tour(tour['id'])).pack(anchor='w', pady=(15, 0))
-                  
-        except Exception as e:
-            print(f"Error creating tour card: {str(e)}")
-
-    def add_shadow(self, widget):
-        """Add subtle shadow effect to widgets"""
-        shadow = ttk.Frame(widget.master)
-        shadow.place(in_=widget, x=2, y=2, relwidth=1, relheight=1)
-        shadow.lower(widget)
-
-    def create_property_list(self, parent, properties):
-        """Create property cards"""
-        for prop in properties:
-            # Property card
-            card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
-            card.pack(fill='x', pady=8, padx=2)
-            
-            # Property info
-            info_frame = tk.Frame(card, bg=self.colors['white'])
-            info_frame.pack(fill='x', padx=20, pady=15)
-            
-            tk.Label(info_frame,
-                    text=f"Property {prop['id']}",
-                    font=('Segoe UI', 14, 'bold'),
-                    fg=self.colors['text'],
-                    bg=self.colors['white']).pack(anchor='w')
-                    
-            tk.Label(info_frame,
-                    text=prop['address'],
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-                    
-            tk.Label(info_frame,
-                    text=prop['type'],
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-
-    def create_report_card(self, parent, title, description):
-        """Create report option card"""
-        card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
-        card.pack(fill='x', pady=8, padx=2)
-        
-        content = tk.Frame(card, bg=self.colors['white'])
-        content.pack(fill='x', padx=20, pady=15)
-        
-        tk.Label(content,
-                text=title,
-                font=('Segoe UI', 14, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w')
-                
-        tk.Label(content,
-                text=description,
-                font=('Segoe UI', 12),
-                fg=self.colors['text_secondary'],
-                bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-        
-        ttk.Button(content,
-                  text="Generate Report",
-                  style='Primary.TButton',
-                  command=lambda t=title: self.generate_report(t)).pack(anchor='w', pady=(15, 0))
-
-    def create_settings_card(self, parent, title, description):
-        """Create settings option card"""
-        card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
-        card.pack(fill='x', pady=8, padx=2)
-        
-        content = tk.Frame(card, bg=self.colors['white'])
-        content.pack(fill='x', padx=20, pady=15)
-        
-        tk.Label(content,
-                text=title,
-                font=('Segoe UI', 14, 'bold'),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w')
-                
-        tk.Label(content,
-                text=description,
-                font=('Segoe UI', 12),
-                fg=self.colors['text_secondary'],
-                bg=self.colors['white']).pack(anchor='w', pady=(5, 0))
-        
-        ttk.Button(content,
-                  text="Configure",
-                  style='Primary.TButton',
-                  command=lambda t=title: self.configure_setting(t)).pack(anchor='w', pady=(15, 0))
-
-    def generate_report(self, report_type):
-        """Handle report generation"""
-        messagebox.showinfo("Generate Report", f"Generating {report_type} report...")
-
-    def configure_setting(self, setting_type):
-        """Handle settings configuration"""
-        messagebox.showinfo("Configure Settings", f"Configuring {setting_type}...")
+        self.load_properties()
 
     def show_add_property_dialog(self):
-        """Show dialog to add new property"""
+        """Dialog to add a new property"""
         dialog = tk.Toplevel(self)
-        dialog.title("Add New Property")
-        dialog.geometry("400x200")  # Smaller size since we only need one field
+        dialog.title("Add Property")
+        dialog.geometry("400x300")
         dialog.configure(bg=self.colors['white'])
         
-        # Center the dialog
         dialog.transient(self)
         dialog.grab_set()
         
         # Form container
-        form_frame = tk.Frame(dialog, bg=self.colors['white'])
-        form_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        form_frame = ttk.Frame(dialog, style='Card.TFrame')
+        form_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
-        # Property Address field
-        tk.Label(form_frame,
-                text="Property Address",
-                font=('Segoe UI', 12),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 5))
-                
+        # Address field
+        ttk.Label(form_frame,
+                 text="Property Address",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
         address_var = tk.StringVar()
         address_entry = ttk.Entry(form_frame,
                                 textvariable=address_var,
-                                font=('Segoe UI', 12))
-        address_entry.pack(fill='x', pady=(0, 20))
+                                font=('Segoe UI', 11),
+                                width=40)
+        address_entry.pack(fill='x')
+        
+        # Additional property details if needed
+        # ...
         
         # Buttons
-        button_frame = tk.Frame(form_frame, bg=self.colors['white'])
-        button_frame.pack(fill='x', pady=(10, 0))
+        button_frame = ttk.Frame(dialog, style='Card.TFrame')
+        button_frame.pack(fill='x', padx=20, pady=(0, 20))
         
         ttk.Button(button_frame,
                   text="Cancel",
                   style='Secondary.TButton',
-                  command=dialog.destroy).pack(side='right', padx=(10, 0))
-                  
-        ttk.Button(button_frame,
-                  text="Add Property",
-                  style='Primary.TButton',
-                  command=lambda: self.add_property(address_var.get(), dialog)).pack(side='right')
-
-    def add_property(self, address, dialog):
-        """Add new property"""
-        if not address.strip():
-            messagebox.showerror("Error", "Property address is required")
-            return
+                  command=dialog.destroy).pack(side='left')
         
-        try:
-            # Create property data (simplified)
-            property_data = {
-                'address': address.strip()
-            }
-            
-            # Add to database through API
-            response = self.api_client.add_property(property_data)
-            if response:
-                messagebox.showinfo("Success", "Property added successfully!")
-                dialog.destroy()
-                self.load_properties()  # Refresh property list
-            else:
-                messagebox.showerror("Error", "Failed to add property")
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
-
-    def edit_property(self, property_id):
-        """Show dialog to edit property"""
-        # Similar to add_property_dialog but pre-filled with existing data
-        property_data = self.api_client.get_property(property_id)
-        if not property_data:
-            messagebox.showerror("Error", "Failed to load property data")
-            return
-        
-        # Show edit dialog with pre-filled data
-        # Similar structure to add_property_dialog
-        ...
-
-    def delete_property(self, property_id):
-        """Delete property after confirmation"""
-        if messagebox.askyesno("Confirm Delete", 
-                              "Are you sure you want to delete this property? This cannot be undone."):
+        def save_property():
+            address = address_var.get().strip()
+            if not address:
+                messagebox.showerror("Error", "Please enter a property address")
+                return
+                
             try:
-                response = self.api_client.delete_property(property_id)
-                if response:
-                    messagebox.showinfo("Success", "Property deleted successfully!")
-                    self.load_properties()  # Refresh list
-                else:
-                    messagebox.showerror("Error", "Failed to delete property")
+                self.api_client.add_property({'address': address})
+                dialog.destroy()
+                self.load_properties()
             except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
+                messagebox.showerror("Error", f"Failed to add property: {str(e)}")
+        
+        ttk.Button(button_frame,
+                  text="Save Property",
+                  style='Primary.TButton',
+                  command=save_property).pack(side='right')
 
-    def create_property_card(self, parent, prop):
+    def load_properties(self):
+        """Load and display properties"""
+        try:
+            # Clear existing properties
+            for widget in self.properties_list.winfo_children():
+                widget.destroy()
+            
+            properties = self.api_client.get_properties()
+            
+            if not properties:
+                ttk.Label(self.properties_list,
+                         text="No properties added",
+                         style='Body.TLabel').pack(pady=20)
+                return
+            
+            # Display properties
+            for prop in properties:
+                self.create_property_card(prop)
+                
+        except Exception as e:
+            print(f"Failed to load properties: {str(e)}")
+            self.show_error_message("Unable to load properties", 
+                                  "Please check your connection and try again.")
+
+    def create_property_card(self, property_data):
         """Create individual property card"""
-        card = tk.Frame(parent, bg=self.colors['white'], relief='solid', borderwidth=1)
+        card = tk.Frame(self.properties_list, bg=self.colors['white'], relief='solid', borderwidth=1)
         card.pack(fill='x', pady=8, padx=2)
         
         content = tk.Frame(card, bg=self.colors['white'])
@@ -858,198 +528,415 @@ class ModernUI(ttk.Frame):
         
         # Property address
         tk.Label(content,
-                text=prop['address'],
-                font=('Segoe UI', 14),
+                text=f"🏠 {property_data['address']}",
+                font=('Segoe UI', 14, 'bold'),
                 fg=self.colors['text'],
                 bg=self.colors['white']).pack(anchor='w')
         
-        # Action buttons
-        button_frame = tk.Frame(content, bg=self.colors['white'])
-        button_frame.pack(fill='x', pady=(15, 0))
+        # Actions
+        actions = tk.Frame(content, bg=self.colors['white'])
+        actions.pack(anchor='w', pady=(15, 0))
         
-        ttk.Button(button_frame,
-                  text="Delete",
-                  style='Danger.TButton',
-                  command=lambda p=prop['id']: self.delete_property(p)).pack(side='left')
+        edit_btn = self.create_styled_button(
+            actions,
+            "Edit",
+            'Secondary.TButton',
+            lambda: self.edit_property(property_data)
+        )
+        edit_btn.pack(side='left', padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            actions,
+            "Delete",
+            'Danger.TButton',
+            lambda: self.delete_property(property_data['id'])
+        )
+        delete_btn.pack(side='left')
 
-    def refresh_dashboard(self):
-        """Refresh the dashboard"""
-        self.show_dashboard()
+    def show_reports(self):
+        self.clear_content()
+        self.create_page_header("Reports", "View your tour statistics")
+        # Reports content here...
 
-    def display_tours(self, parent_frame):
-        """Display tours in the given frame"""
+    def show_settings(self):
+        self.clear_content()
+        self.create_page_header("Settings", "Configure your preferences")
+        # Settings content here...
+
+    def create_property_dropdown(self, parent):
+        """Create property dropdown with modern styling"""
+        properties_frame = ttk.Frame(parent, style='Card.TFrame')
+        properties_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(properties_frame,
+                 text="Select Property",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
+        # Get properties from API
         try:
-            # Get tours from API
-            tours = self.api_client.get_tours()
-            
-            if not tours:
-                tk.Label(parent_frame,
-                        text="No tours scheduled",
-                        font=('Segoe UI', 12),
-                        fg=self.colors['text_secondary'],
-                        bg=self.colors['white']).pack(pady=20)
-                return
-                
-            # Sort tours by date and time
-            tours.sort(key=lambda x: (x['date'], x['time']))
-            
-            # Display tours
-            for tour in tours:
-                self.create_tour_card(parent_frame, tour)
-                
+            properties = self.api_client.get_properties()
+            property_addresses = [prop['address'] for prop in properties]
         except Exception as e:
-            print(f"Failed to load tours: {str(e)}")
-            error_frame = tk.Frame(parent_frame, bg=self.colors['white'])
-            error_frame.pack(fill='x', pady=20)
-            
-            tk.Label(error_frame,
-                    text="⚠️ Unable to load tours",
-                    font=('Segoe UI', 12),
-                    fg='red',
-                    bg=self.colors['white']).pack(anchor='w')
-                    
-            tk.Label(error_frame,
-                    text="Please check your connection and try again.",
-                    font=('Segoe UI', 12),
-                    fg=self.colors['text_secondary'],
-                    bg=self.colors['white']).pack(anchor='w', pady=(5, 10))
-                    
-            ttk.Button(error_frame,
-                      text="Try Again",
-                      style='Primary.TButton',
-                      command=self.refresh_view).pack(anchor='w')
-            
-            print(f"Error displaying tours: {str(e)}")
-
-    def edit_tour(self, tour_id):
-        """Edit existing tour"""
-        messagebox.showinfo("Edit Tour", f"Editing tour {tour_id}")
-        # Add edit tour functionality here
-
-    def cancel_tour(self, tour_id):
-        """Cancel a tour"""
-        if messagebox.askyesno("Cancel Tour", "Are you sure you want to cancel this tour?"):
-            try:
-                if self.api_client.delete_tour(tour_id):
-                    messagebox.showinfo("Success", "Tour cancelled successfully!")
-                    self.refresh_view()
-                else:
-                    messagebox.showerror("Error", "Failed to cancel tour")
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
-
-    def create_tour(self, property_id):
-        """Show dialog to create a new tour"""
-        dialog = tk.Toplevel(self)
-        dialog.title("Schedule Tour")
-        dialog.geometry("400x400")
-        dialog.configure(bg=self.colors['white'])
+            property_addresses = []
+            print(f"Error loading properties: {str(e)}")
         
-        # Center the dialog
-        dialog.transient(self)
-        dialog.grab_set()
+        # Create Combobox with custom styling
+        self.property_var.set('')  # Clear previous selection
+        property_dropdown = ttk.Combobox(properties_frame,
+                                       textvariable=self.property_var,
+                                       values=property_addresses,
+                                       state='readonly',
+                                       font=('Segoe UI', 11),
+                                       width=40)
+        property_dropdown.pack(fill='x')
+        
+        return property_dropdown
+
+    def show_add_tour(self):
+        """Show tour scheduling form in the main content area"""
+        self.clear_content()
+        self.create_page_header("Schedule New Tour", "Add a new property tour")
+        
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
         # Form container
-        form_frame = tk.Frame(dialog, bg=self.colors['white'])
-        form_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        form_frame = ttk.Frame(container, style='Card.TFrame')
+        form_frame.pack(fill='x', padx=20, pady=20)
+        
+        # Property Selection
+        ttk.Label(form_frame,
+                 text="Select Property",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
+        property_dropdown = ttk.Combobox(form_frame,
+                                       textvariable=self.property_var,
+                                       values=self.get_property_list(),
+                                       state='readonly',
+                                       font=('Segoe UI', 11),
+                                       width=40)
+        property_dropdown.pack(fill='x', pady=(0, 15))
         
         # Client Name
-        tk.Label(form_frame,
-                text="Client Name",
-                font=('Segoe UI', 12),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 5))
-                
-        client_name_var = tk.StringVar()
+        ttk.Label(form_frame,
+                 text="Client Name",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
         ttk.Entry(form_frame,
-                 textvariable=client_name_var,
-                 font=('Segoe UI', 12)).pack(fill='x', pady=(0, 15))
+                 textvariable=self.client_name_var,
+                 font=('Segoe UI', 11),
+                 width=40).pack(fill='x', pady=(0, 15))
         
         # Phone Number
-        tk.Label(form_frame,
-                text="Phone Number",
-                font=('Segoe UI', 12),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 5))
-                
-        phone_var = tk.StringVar()
-        ttk.Entry(form_frame,
-                 textvariable=phone_var,
-                 font=('Segoe UI', 12)).pack(fill='x', pady=(0, 15))
+        ttk.Label(form_frame,
+                 text="Phone Number",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
-        # Date
-        tk.Label(form_frame,
-                text="Date",
-                font=('Segoe UI', 12),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 5))
-                
+        ttk.Entry(form_frame,
+                 textvariable=self.phone_var,
+                 font=('Segoe UI', 11),
+                 width=40).pack(fill='x', pady=(0, 15))
+        
+        # Tour Date with manual entry
+        ttk.Label(form_frame,
+                 text="Tour Date (MM/DD/YYYY)",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
+        
         date_var = tk.StringVar()
         date_entry = ttk.Entry(form_frame,
                               textvariable=date_var,
-                              font=('Segoe UI', 12))
+                              font=('Segoe UI', 11),
+                              width=40)
         date_entry.pack(fill='x', pady=(0, 15))
-        date_entry.insert(0, "YYYY-MM-DD")  # Placeholder
         
-        # Time
-        tk.Label(form_frame,
-                text="Time",
-                font=('Segoe UI', 12),
-                fg=self.colors['text'],
-                bg=self.colors['white']).pack(anchor='w', pady=(0, 5))
-                
-        time_var = tk.StringVar()
-        time_entry = ttk.Entry(form_frame,
-                              textvariable=time_var,
-                              font=('Segoe UI', 12))
-        time_entry.pack(fill='x', pady=(0, 15))
-        time_entry.insert(0, "HH:MM")  # Placeholder
+        # Tour Time (12-hour format)
+        ttk.Label(form_frame,
+                 text="Tour Time",
+                 style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
-        def schedule_tour():
-            # Validate inputs
-            client_name = client_name_var.get().strip()
-            phone = phone_var.get().strip()
-            date = date_var.get().strip()
-            time = time_var.get().strip()
-            
-            if not all([client_name, phone, date, time]):
-                messagebox.showerror("Error", "All fields are required")
-                return
-                
-            # Create tour data
-            tour_data = {
-                'property_id': property_id,
-                'client_name': client_name,
-                'phone_number': phone,
-                'date': date,
-                'time': time
-            }
-            
-            try:
-                response = self.api_client.add_tour(tour_data)
-                if response:
-                    messagebox.showinfo("Success", "Tour scheduled successfully!")
-                    dialog.destroy()
-                    self.refresh_view()  # Changed from refresh_dashboard to refresh_view
-                else:
-                    messagebox.showerror("Error", "Failed to schedule tour")
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
+        time_frame = ttk.Frame(form_frame)
+        time_frame.pack(fill='x', pady=(0, 15))
+        
+        # Convert hours to 12-hour format
+        hours_12 = [f"{h:02d}" if h <= 12 else f"{h-12:02d}" for h in range(9, 18)]
+        minutes = ['00', '15', '30', '45']
+        ampm = ['AM', 'PM']
+        
+        hour_var = tk.StringVar(value='09')
+        minute_var = tk.StringVar(value='00')
+        ampm_var = tk.StringVar(value='AM')
+        
+        # Hour dropdown
+        ttk.Combobox(time_frame,
+                    textvariable=hour_var,
+                    values=hours_12,
+                    width=5,
+                    state='readonly',
+                    font=('Segoe UI', 11)).pack(side='left', padx=(0, 5))
+        
+        ttk.Label(time_frame,
+                 text=":",
+                 style='Body.TLabel').pack(side='left', padx=2)
+        
+        # Minute dropdown
+        ttk.Combobox(time_frame,
+                    textvariable=minute_var,
+                    values=minutes,
+                    width=5,
+                    state='readonly',
+                    font=('Segoe UI', 11)).pack(side='left', padx=5)
+        
+        # AM/PM dropdown
+        ttk.Combobox(time_frame,
+                    textvariable=ampm_var,
+                    values=ampm,
+                    width=5,
+                    state='readonly',
+                    font=('Segoe UI', 11)).pack(side='left', padx=5)
         
         # Buttons
-        button_frame = tk.Frame(form_frame, bg=self.colors['white'])
-        button_frame.pack(fill='x', pady=(20, 0))
+        button_frame = ttk.Frame(form_frame)
+        button_frame.pack(fill='x', pady=(15, 0))
+        
+        cancel_btn = self.create_styled_button(
+            button_frame,
+            "Cancel",
+            'Secondary.TButton',
+            self.show_tours
+        )
+        cancel_btn.pack(side='left', padx=(0, 10))
+        
+        def save_tour():
+            try:
+                # Parse and validate date
+                tour_date = datetime.strptime(date_var.get(), '%m/%d/%Y').date()
+                
+                # Convert 12-hour to 24-hour time
+                hour = int(hour_var.get())
+                if ampm_var.get() == 'PM' and hour != 12:
+                    hour += 12
+                elif ampm_var.get() == 'AM' and hour == 12:
+                    hour = 0
+                    
+                # Create tour data
+                tour_data = {
+                    'property_id': self.property_var.get(),
+                    'client_name': self.client_name_var.get(),
+                    'phone_number': self.phone_var.get(),
+                    'date': tour_date.strftime('%Y-%m-%d'),
+                    'time': f"{hour:02d}:{minute_var.get()}",
+                    'duration': 60  # Fixed 1-hour duration
+                }
+                
+                if not all([tour_data['property_id'],
+                           tour_data['client_name'],
+                           tour_data['phone_number']]):
+                    messagebox.showerror("Error", "Please fill in all required fields")
+                    return
+                    
+                self.api_client.add_tour(tour_data)
+                self.show_tours()
+                
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid date in MM/DD/YYYY format")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save tour: {str(e)}")
+        
+        save_btn = self.create_styled_button(
+            button_frame,
+            "Schedule Tour",
+            'Primary.TButton',
+            save_tour
+        )
+        save_btn.pack(side='right')
+
+    def edit_tour(self, tour):
+        """Show dialog to edit an existing tour"""
+        dialog = tk.Toplevel(self)
+        dialog.title("Edit Tour")
+        dialog.geometry("500x700")
+        dialog.configure(bg=self.colors['white'])
+        
+        # Make dialog modal
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        # Header
+        header_frame = ttk.Frame(dialog, style='Card.TFrame')
+        header_frame.pack(fill='x', padx=20, pady=20)
+        
+        ttk.Label(header_frame,
+                 text="Edit Tour",
+                 style='SubHeader.TLabel').pack(anchor='w')
+        
+        # Form container
+        form_frame = ttk.Frame(dialog, style='Card.TFrame')
+        form_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+        
+        # Pre-fill existing data
+        self.property_var.set(tour.get('property_id', ''))
+        self.client_name_var.set(tour.get('client_name', ''))
+        self.phone_var.set(tour.get('phone_number', ''))
+        
+        # Add form fields (similar to add_tour)
+        property_dropdown = self.create_property_dropdown(form_frame)
+        
+        # ... (Add other fields similar to add_tour dialog) ...
+        
+        # Tour Status
+        ttk.Label(form_frame,
+                 text="Tour Status",
+                 style='Body.TLabel').pack(anchor='w', pady=(15, 5))
+        
+        status_var = tk.StringVar(value=tour.get('status', 'scheduled'))
+        status_frame = ttk.Frame(form_frame)
+        status_frame.pack(fill='x', pady=(0, 15))
+        
+        def update_status(new_status):
+            try:
+                self.api_client.update_tour_status(tour['id'], new_status)
+                status_var.set(new_status)
+                self.load_tours()  # Refresh tours list
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update status: {str(e)}")
+        
+        # Status buttons
+        ttk.Button(status_frame,
+                  text="✓ Completed",
+                  style='Primary.TButton',
+                  command=lambda: update_status('completed')).pack(side='left', padx=(0, 5))
+        
+        ttk.Button(status_frame,
+                  text="✗ Cancelled",
+                  style='Danger.TButton',
+                  command=lambda: update_status('cancelled')).pack(side='left', padx=5)
+        
+        ttk.Button(status_frame,
+                  text="⚠ No Show",
+                  style='Secondary.TButton',
+                  command=lambda: update_status('no_show')).pack(side='left', padx=5)
+        
+        # Save/Cancel buttons
+        button_frame = ttk.Frame(dialog, style='Card.TFrame')
+        button_frame.pack(fill='x', padx=20, pady=(0, 20))
         
         ttk.Button(button_frame,
                   text="Cancel",
                   style='Secondary.TButton',
-                  command=dialog.destroy).pack(side='right', padx=(10, 0))
-                  
+                  command=dialog.destroy).pack(side='left', padx=(0, 10))
+        
+        def save_changes():
+            # Validate and save changes
+            if not all([self.property_var.get(),
+                       self.client_name_var.get(),
+                       self.phone_var.get()]):
+                messagebox.showerror("Error", "Please fill in all required fields")
+                return
+            
+            # Update tour data
+            updated_data = {
+                'property_id': self.property_var.get(),
+                'client_name': self.client_name_var.get(),
+                'phone_number': self.phone_var.get(),
+                'status': status_var.get(),
+                # Add other fields...
+            }
+            
+            try:
+                self.api_client.update_tour(tour['id'], updated_data)
+                dialog.destroy()
+                self.load_tours()  # Refresh tours list
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save changes: {str(e)}")
+        
         ttk.Button(button_frame,
-                  text="Schedule Tour",
+                  text="Save Changes",
                   style='Primary.TButton',
-                  command=schedule_tour).pack(side='right')
+                  command=save_changes).pack(side='right')
 
-    def refresh_view(self):
-        """Refresh the current view"""
-        self.show_dashboard()
+    def delete_tour(self, tour):
+        """Delete a tour with confirmation"""
+        if messagebox.askyesno("Confirm Delete", 
+                              "Are you sure you want to delete this tour?"):
+            try:
+                if self.api_client.delete_tour(tour['id']):
+                    self.load_tours()  # Refresh the list
+                else:
+                    messagebox.showerror("Error", "Failed to delete tour")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete tour: {str(e)}")
+
+    def show_loading(self, parent, message="Loading..."):
+        """Show loading indicator"""
+        loading_frame = tk.Frame(parent, bg=self.colors['white'])
+        loading_frame.pack(fill='both', expand=True)
+        
+        tk.Label(loading_frame,
+                text="⌛",
+                font=('Segoe UI', 24),
+                fg=self.colors['primary'],
+                bg=self.colors['white']).pack(pady=(20, 10))
+                
+        tk.Label(loading_frame,
+                text=message,
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack()
+        
+        return loading_frame
+
+    def show_error_message(self, parent, title, message):
+        """Show error message with retry button"""
+        error_frame = tk.Frame(parent, bg=self.colors['white'])
+        error_frame.pack(fill='x', pady=20)
+        
+        tk.Label(error_frame,
+                text=f"⚠️ {title}",
+                font=('Segoe UI', 12, 'bold'),
+                fg=self.colors['error'],
+                bg=self.colors['white']).pack(anchor='w')
+                
+        tk.Label(error_frame,
+                text=message,
+                font=('Segoe UI', 12),
+                fg=self.colors['text_secondary'],
+                bg=self.colors['white']).pack(anchor='w', pady=(5, 10))
+        
+        return error_frame
+
+    def create_styled_button(self, parent, text, style, command):
+        """Create a styled button with consistent appearance"""
+        if style == 'Primary.TButton':
+            bg_color = self.colors['button_primary']
+            hover_color = self.colors['button_primary_hover']
+        elif style == 'Secondary.TButton':
+            bg_color = self.colors['button_secondary']
+            hover_color = self.colors['button_secondary_hover']
+        else:  # Danger
+            bg_color = self.colors['button_danger']
+            hover_color = self.colors['button_danger_hover']
+        
+        button = tk.Button(parent,
+                          text=text,
+                          font=('Segoe UI', 11, 'bold'),
+                          fg=self.colors['white'],
+                          bg=bg_color,
+                          activebackground=hover_color,
+                          activeforeground=self.colors['white'],
+                          relief='flat',
+                          padx=20,
+                          pady=12,
+                          cursor='hand2',
+                          command=command)
+        
+        def on_enter(e):
+            button['background'] = hover_color
+            
+        def on_leave(e):
+            button['background'] = bg_color
+        
+        button.bind('<Enter>', on_enter)
+        button.bind('<Leave>', on_leave)
+        
+        return button
