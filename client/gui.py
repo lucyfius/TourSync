@@ -264,7 +264,39 @@ class ModernUI(ttk.Frame):
         self.clear_content()
         self.create_page_header("Dashboard", "Welcome to TourSync")
         
-        # Dashboard content here...
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
+        
+        # Upcoming Tours Section
+        tours_frame = ttk.Frame(container, style='Card.TFrame')
+        tours_frame.pack(fill='x', padx=20, pady=20)
+        
+        ttk.Label(tours_frame,
+                 text="Upcoming Tours",
+                 style='SubHeader.TLabel').pack(anchor='w', pady=(0, 15))
+        
+        try:
+            # Get tours from API
+            tours = self.api_client.get_tours()
+            
+            if not tours:
+                ttk.Label(tours_frame,
+                         text="No upcoming tours scheduled",
+                         style='Body.TLabel').pack(pady=10)
+                return
+            
+            # Sort tours by date and time
+            tours.sort(key=lambda x: (x['date'], x['time']))
+            
+            # Display tours
+            for tour in tours:
+                self.create_tour_card(tours_frame, tour)
+                
+        except Exception as e:
+            print(f"Failed to load tours: {str(e)}")
+            self.show_error_message("Unable to load tours", 
+                                  "Please check your connection and try again.")
 
     def show_tours(self):
         """Show tours view with management functionality"""
@@ -301,7 +333,7 @@ class ModernUI(ttk.Frame):
         # Status indicator
         status = tour.get('status', 'scheduled')
         status_colors = {
-            'scheduled': '#FFB74D',  # Orange
+            'scheduled': '#8B1F2F',  # Burgundy
             'completed': '#81C784',  # Green
             'cancelled': '#E57373',  # Red
             'no_show': '#9575CD'    # Purple
@@ -315,9 +347,16 @@ class ModernUI(ttk.Frame):
         content = tk.Frame(card, bg=self.colors['white'])
         content.pack(fill='x', padx=20, pady=15)
         
-        # Tour info
+        # Convert time to 12-hour format
+        try:
+            time_24 = datetime.strptime(tour.get('time', '00:00'), '%H:%M')
+            time_12 = time_24.strftime('%I:%M %p')
+        except ValueError:
+            time_12 = tour.get('time', 'N/A')
+        
+        # Tour info with 12-hour time
         tk.Label(content,
-                text=f"📅 {tour.get('date', 'N/A')} at {tour.get('time', 'N/A')}",
+                text=f"📅 {tour.get('date', 'N/A')} at {time_12}",
                 font=('Segoe UI', 14, 'bold'),
                 fg=self.colors['text'],
                 bg=self.colors['white']).pack(anchor='w')
@@ -601,7 +640,7 @@ class ModernUI(ttk.Frame):
         container = ttk.Frame(self.content, style='Card.TFrame')
         container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
-        # Form container
+        # Form container with white background
         form_frame = ttk.Frame(container, style='Card.TFrame')
         form_frame.pack(fill='x', padx=20, pady=20)
         
@@ -610,9 +649,10 @@ class ModernUI(ttk.Frame):
                  text="Select Property",
                  style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
+        properties = self.get_property_list()
         property_dropdown = ttk.Combobox(form_frame,
                                        textvariable=self.property_var,
-                                       values=self.get_property_list(),
+                                       values=properties,
                                        state='readonly',
                                        font=('Segoe UI', 11),
                                        width=40)
@@ -638,7 +678,7 @@ class ModernUI(ttk.Frame):
                  font=('Segoe UI', 11),
                  width=40).pack(fill='x', pady=(0, 15))
         
-        # Tour Date with manual entry
+        # Tour Date
         ttk.Label(form_frame,
                  text="Tour Date (MM/DD/YYYY)",
                  style='Body.TLabel').pack(anchor='w', pady=(0, 5))
@@ -650,55 +690,23 @@ class ModernUI(ttk.Frame):
                               width=40)
         date_entry.pack(fill='x', pady=(0, 15))
         
-        # Tour Time (12-hour format)
+        # Tour Time
         ttk.Label(form_frame,
-                 text="Tour Time",
+                 text="Tour Time (HH:MM AM/PM)",
                  style='Body.TLabel').pack(anchor='w', pady=(0, 5))
         
-        time_frame = ttk.Frame(form_frame)
-        time_frame.pack(fill='x', pady=(0, 15))
-        
-        # Convert hours to 12-hour format
-        hours_12 = [f"{h:02d}" if h <= 12 else f"{h-12:02d}" for h in range(9, 18)]
-        minutes = ['00', '15', '30', '45']
-        ampm = ['AM', 'PM']
-        
-        hour_var = tk.StringVar(value='09')
-        minute_var = tk.StringVar(value='00')
-        ampm_var = tk.StringVar(value='AM')
-        
-        # Hour dropdown
-        ttk.Combobox(time_frame,
-                    textvariable=hour_var,
-                    values=hours_12,
-                    width=5,
-                    state='readonly',
-                    font=('Segoe UI', 11)).pack(side='left', padx=(0, 5))
-        
-        ttk.Label(time_frame,
-                 text=":",
-                 style='Body.TLabel').pack(side='left', padx=2)
-        
-        # Minute dropdown
-        ttk.Combobox(time_frame,
-                    textvariable=minute_var,
-                    values=minutes,
-                    width=5,
-                    state='readonly',
-                    font=('Segoe UI', 11)).pack(side='left', padx=5)
-        
-        # AM/PM dropdown
-        ttk.Combobox(time_frame,
-                    textvariable=ampm_var,
-                    values=ampm,
-                    width=5,
-                    state='readonly',
-                    font=('Segoe UI', 11)).pack(side='left', padx=5)
+        time_var = tk.StringVar()
+        time_entry = ttk.Entry(form_frame,
+                              textvariable=time_var,
+                              font=('Segoe UI', 11),
+                              width=40)
+        time_entry.pack(fill='x', pady=(0, 15))
         
         # Buttons
-        button_frame = ttk.Frame(form_frame)
+        button_frame = ttk.Frame(form_frame, style='Card.TFrame')
         button_frame.pack(fill='x', pady=(15, 0))
         
+        # Cancel button
         cancel_btn = self.create_styled_button(
             button_frame,
             "Cancel",
@@ -712,20 +720,22 @@ class ModernUI(ttk.Frame):
                 # Parse and validate date
                 tour_date = datetime.strptime(date_var.get(), '%m/%d/%Y').date()
                 
-                # Convert 12-hour to 24-hour time
-                hour = int(hour_var.get())
-                if ampm_var.get() == 'PM' and hour != 12:
-                    hour += 12
-                elif ampm_var.get() == 'AM' and hour == 12:
-                    hour = 0
-                    
+                # Parse and validate time
+                try:
+                    time_obj = datetime.strptime(time_var.get(), '%I:%M %p')
+                    hour = time_obj.hour
+                    minute = time_obj.minute
+                except ValueError:
+                    messagebox.showerror("Error", "Please enter time in format HH:MM AM/PM (e.g., 03:20 PM)")
+                    return
+                
                 # Create tour data
                 tour_data = {
                     'property_id': self.property_var.get(),
                     'client_name': self.client_name_var.get(),
                     'phone_number': self.phone_var.get(),
                     'date': tour_date.strftime('%Y-%m-%d'),
-                    'time': f"{hour:02d}:{minute_var.get()}",
+                    'time': f"{hour:02d}:{minute:02d}",
                     'duration': 60  # Fixed 1-hour duration
                 }
                 
@@ -743,13 +753,14 @@ class ModernUI(ttk.Frame):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save tour: {str(e)}")
         
-        save_btn = self.create_styled_button(
+        # Schedule button
+        schedule_btn = self.create_styled_button(
             button_frame,
             "Schedule Tour",
             'Primary.TButton',
             save_tour
         )
-        save_btn.pack(side='right')
+        schedule_btn.pack(side='right')
 
     def edit_tour(self, tour):
         """Show dialog to edit an existing tour"""
@@ -940,3 +951,12 @@ class ModernUI(ttk.Frame):
         button.bind('<Leave>', on_leave)
         
         return button
+
+    def get_property_list(self):
+        """Get list of properties from API"""
+        try:
+            properties = self.api_client.get_properties()
+            return [prop['address'] for prop in properties] if properties else []
+        except Exception as e:
+            print(f"Error loading properties: {str(e)}")
+            return []
