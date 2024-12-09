@@ -1,9 +1,7 @@
 from pymongo import MongoClient
-from datetime import datetime
 import os
 from dotenv import load_dotenv
 import logging
-import re
 
 # Load environment variables
 load_dotenv()
@@ -58,23 +56,3 @@ def init_mongodb():
         logging.info("MongoDB initialized successfully")
     except Exception as e:
         logging.warning(f"Collection initialization warning: {e}")
-
-def validate_tour_data(tour_data):
-    required_fields = ['property_id', 'tour_time', 'end_time', 'client_name', 'phone_number']
-    for field in required_fields:
-        if field not in tour_data:
-            raise ValueError(f"Missing required field: {field}")
-            
-    # Validate phone number format
-    phone_pattern = re.compile(r'^\+?1?\d{9,15}$')
-    if not phone_pattern.match(tour_data['phone_number']):
-        raise ValueError("Invalid phone number format")
-        
-    # Validate dates
-    try:
-        tour_time = datetime.fromisoformat(tour_data['tour_time'])
-        end_time = datetime.fromisoformat(tour_data['end_time'])
-        if end_time <= tour_time:
-            raise ValueError("End time must be after tour time")
-    except ValueError as e:
-        raise ValueError(f"Invalid datetime format: {e}")
