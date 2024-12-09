@@ -25,12 +25,12 @@ class ModernUI(ttk.Frame):
             'text_secondary': '#4A4A4A', # Medium gray for secondary text
             'text_light': '#E8E8E8',    # Light gray text for dark backgrounds
             'border': '#E0E0E0',        # Light gray borders
-            'button_primary': '#8B1F2F',      # Burgundy for primary buttons
-            'button_primary_hover': '#721A26', # Darker burgundy for hover
-            'button_secondary': '#4A4A4A',    # Dark gray for secondary buttons
-            'button_secondary_hover': '#3D3D3D', # Darker gray for hover
-            'button_danger': '#8B1F2F',       # Changed to match burgundy
-            'button_danger_hover': '#721A26',  # Changed to match burgundy hover
+            'button_primary': '#7B1FA2',
+            'button_primary_hover': '#9C27B0',
+            'button_secondary': '#455A64',
+            'button_secondary_hover': '#607D8B',
+            'button_danger': '#C62828',
+            'button_danger_hover': '#D32F2F',
             'success': '#2D5A27',       # Dark green
             'error': '#D32F2F'          # Using same red as button_danger
         }
@@ -959,23 +959,40 @@ class ModernUI(ttk.Frame):
         return error_frame
 
     def create_styled_button(self, parent, text, style, command):
-        """Create a styled button with consistent burgundy appearance"""
+        """Create a styled button with the specified style"""
+        style_configs = {
+            'Primary.TButton': {
+                'bg': self.colors['button_primary'],
+                'hover_bg': self.colors['button_primary_hover']
+            },
+            'Secondary.TButton': {
+                'bg': self.colors['button_secondary'],
+                'hover_bg': self.colors['button_secondary_hover']
+            },
+            'Danger.TButton': {
+                'bg': self.colors['button_danger'],
+                'hover_bg': self.colors['button_danger_hover']
+            }
+        }
+        
+        style_config = style_configs.get(style, style_configs['Primary.TButton'])
+        
         button = tk.Button(parent,
                           text=text,
                           font=('Segoe UI', 11, 'bold'),
                           fg=self.colors['white'],
-                          bg=self.colors['button_primary'],
-                          activebackground=self.colors['button_primary_hover'],
+                          bg=style_config['bg'],
+                          activebackground=style_config['hover_bg'],
                           activeforeground=self.colors['white'],
                           relief='flat',
                           cursor='hand2',
                           command=command)
         
         def on_enter(e):
-            button['background'] = self.colors['button_primary_hover']
+            button['background'] = style_config['hover_bg']
             
         def on_leave(e):
-            button['background'] = self.colors['button_primary']
+            button['background'] = style_config['bg']
         
         button.bind('<Enter>', on_enter)
         button.bind('<Leave>', on_leave)
