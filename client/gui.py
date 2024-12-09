@@ -774,108 +774,125 @@ class ModernUI(ttk.Frame):
         schedule_btn.pack(side='right')
 
     def edit_tour(self, tour):
-        """Show dialog to edit an existing tour"""
-        dialog = tk.Toplevel(self)
-        dialog.title("Edit Tour")
-        dialog.geometry("500x700")
-        dialog.configure(bg=self.colors['white'])
+        """Show tour editing form in the main content area"""
+        self.clear_content()
+        self.create_page_header("Edit Tour", "Update tour details")
         
-        # Make dialog modal
-        dialog.transient(self)
-        dialog.grab_set()
-        
-        # Header
-        header_frame = ttk.Frame(dialog, style='Card.TFrame')
-        header_frame.pack(fill='x', padx=20, pady=20)
-        
-        ttk.Label(header_frame,
-                 text="Edit Tour",
-                 style='SubHeader.TLabel').pack(anchor='w')
+        # Main container
+        container = ttk.Frame(self.content, style='Card.TFrame')
+        container.pack(fill='both', expand=True, padx=30, pady=(0, 30))
         
         # Form container
-        form_frame = ttk.Frame(dialog, style='Card.TFrame')
-        form_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+        form_frame = ttk.Frame(container, style='Card.TFrame')
+        form_frame.pack(fill='x', padx=20, pady=20)
         
         # Pre-fill existing data
         self.property_var.set(tour.get('property_id', ''))
         self.client_name_var.set(tour.get('client_name', ''))
         self.phone_var.set(tour.get('phone_number', ''))
         
-        # Add form fields (similar to add_tour)
+        # Property Selection
         property_dropdown = self.create_property_dropdown(form_frame)
         
-        # ... (Add other fields similar to add_tour dialog) ...
+        # Client Name
+        ttk.Label(form_frame,
+                 text="Client Name",
+                 style='Body.TLabel').pack(anchor='w', pady=(15, 5))
+        
+        ttk.Entry(form_frame,
+                 textvariable=self.client_name_var,
+                 font=('Segoe UI', 11),
+                 width=40).pack(fill='x')
+        
+        # Phone Number
+        ttk.Label(form_frame,
+                 text="Phone Number",
+                 style='Body.TLabel').pack(anchor='w', pady=(15, 5))
+        
+        ttk.Entry(form_frame,
+                 textvariable=self.phone_var,
+                 font=('Segoe UI', 11),
+                 width=40).pack(fill='x')
         
         # Tour Status
         ttk.Label(form_frame,
                  text="Tour Status",
                  style='Body.TLabel').pack(anchor='w', pady=(15, 5))
         
-        status_var = tk.StringVar(value=tour.get('status', 'scheduled'))
-        status_frame = ttk.Frame(form_frame)
+        status_frame = ttk.Frame(form_frame, style='Card.TFrame')
         status_frame.pack(fill='x', pady=(0, 15))
         
         def update_status(new_status):
             try:
                 self.api_client.update_tour_status(tour['id'], new_status)
-                status_var.set(new_status)
                 self.load_tours()  # Refresh tours list
+                self.show_tours()  # Return to tours view
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to update status: {str(e)}")
         
-        # Status buttons
-        ttk.Button(status_frame,
-                  text="✓ Completed",
-                  style='Primary.TButton',
-                  command=lambda: update_status('completed')).pack(side='left', padx=(0, 5))
+        # Status buttons with consistent burgundy styling
+        completed_btn = self.create_styled_button(
+            status_frame,
+            "✓ Completed",
+            'Primary.TButton',
+            lambda: update_status('completed')
+        )
+        completed_btn.pack(side='left', padx=(0, 5))
         
-        ttk.Button(status_frame,
-                  text="✗ Cancelled",
-                  style='Danger.TButton',
-                  command=lambda: update_status('cancelled')).pack(side='left', padx=5)
+        cancelled_btn = self.create_styled_button(
+            status_frame,
+            "✗ Cancelled",
+            'Primary.TButton',
+            lambda: update_status('cancelled')
+        )
+        cancelled_btn.pack(side='left', padx=5)
         
-        ttk.Button(status_frame,
-                  text="⚠ No Show",
-                  style='Secondary.TButton',
-                  command=lambda: update_status('no_show')).pack(side='left', padx=5)
+        no_show_btn = self.create_styled_button(
+            status_frame,
+            "⚠ No Show",
+            'Primary.TButton',
+            lambda: update_status('no_show')
+        )
+        no_show_btn.pack(side='left', padx=5)
         
-        # Save/Cancel buttons
-        button_frame = ttk.Frame(dialog, style='Card.TFrame')
-        button_frame.pack(fill='x', padx=20, pady=(0, 20))
+        # Buttons
+        button_frame = ttk.Frame(form_frame, style='Card.TFrame')
+        button_frame.pack(fill='x', pady=(15, 0))
         
-        ttk.Button(button_frame,
-                  text="Cancel",
-                  style='Secondary.TButton',
-                  command=dialog.destroy).pack(side='left', padx=(0, 10))
+        cancel_btn = self.create_styled_button(
+            button_frame,
+            "Cancel",
+            'Primary.TButton',
+            self.show_tours
+        )
+        cancel_btn.pack(side='left', padx=(0, 10))
         
         def save_changes():
-            # Validate and save changes
             if not all([self.property_var.get(),
                        self.client_name_var.get(),
                        self.phone_var.get()]):
                 messagebox.showerror("Error", "Please fill in all required fields")
                 return
             
-            # Update tour data
             updated_data = {
                 'property_id': self.property_var.get(),
                 'client_name': self.client_name_var.get(),
-                'phone_number': self.phone_var.get(),
-                'status': status_var.get(),
-                # Add other fields...
+                'phone_number': self.phone_var.get()
             }
             
             try:
                 self.api_client.update_tour(tour['id'], updated_data)
-                dialog.destroy()
-                self.load_tours()  # Refresh tours list
+                self.show_tours()  # Return to tours list
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save changes: {str(e)}")
         
-        ttk.Button(button_frame,
-                  text="Save Changes",
-                  style='Primary.TButton',
-                  command=save_changes).pack(side='right')
+        save_btn = self.create_styled_button(
+            button_frame,
+            "Save Changes",
+            'Primary.TButton',
+            save_changes
+        )
+        save_btn.pack(side='right')
 
     def delete_tour(self, tour):
         """Delete a tour with confirmation"""
