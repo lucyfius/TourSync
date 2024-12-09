@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import logging
+from .database import get_database
 
 # Load environment variables
 load_dotenv()

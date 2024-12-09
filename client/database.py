@@ -1,8 +1,9 @@
 from pymongo import MongoClient
+from datetime import datetime
 import os
 from dotenv import load_dotenv
 import logging
-from .database import get_database
+import re
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,26 @@ load_dotenv()
 # MongoDB configuration
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
 MONGODB_DB = os.getenv('MONGODB_DB', 'toursync')
+
+class MongoSchema:
+    TOURS_COLLECTION = {
+        'validator': {
+            '$jsonSchema': {
+                'bsonType': 'object',
+                'required': ['property_id', 'tour_time', 'end_time', 'client_name', 'phone_number'],
+                'properties': {
+                    'property_id': {'bsonType': 'string'},
+                    'tour_time': {'bsonType': 'date'},
+                    'end_time': {'bsonType': 'date'},
+                    'status': {'enum': ['scheduled', 'completed', 'cancelled', 'no_show']},
+                    'client_name': {'bsonType': 'string'},
+                    'phone_number': {'bsonType': 'string'},
+                    'created_at': {'bsonType': 'date'},
+                    'updated_at': {'bsonType': 'date'}
+                }
+            }
+        }
+    }
 
 def get_database():
     try:
@@ -26,7 +47,7 @@ def init_mongodb():
     
     try:
         # Create collections with validation
-        db.create_collection('tours')
+        db.create_collection('tours', **MongoSchema.TOURS_COLLECTION)
         db.create_collection('properties')
         
         # Create indexes
@@ -36,4 +57,24 @@ def init_mongodb():
         
         logging.info("MongoDB initialized successfully")
     except Exception as e:
-        logging.warning(f"Collection initialization warning: {e}") 
+        logging.warning(f"Collection initialization warning: {e}")
+
+def validate_tour_data(tour_data):
+    required_fields = ['property_id', 'tour_time', 'end_time', 'client_name', 'phone_number']
+    for field in required_fields:
+        if field not in tour_data:
+            raise ValueError(f"Missing required field: {field}")
+            
+    # Validate phone number format
+    phone_pattern = re.compile(r'^\+?1?\d{9,15}$')
+    if not phone_pattern.match(tour_data['phone_number']):
+        raise ValueError("Invalid phone number format")
+        
+    # Validate dates
+    try:
+        tour_time = datetime.fromisoformat(tour_data['tour_time'])
+        end_time = datetime.fromisoformat(tour_data['end_time'])
+        if end_time <= tour_time:
+            raise ValueError("End time must be after tour time")
+    except ValueError as e:
+        raise ValueError(f"Invalid datetime format: {e}")
