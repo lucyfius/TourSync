@@ -681,24 +681,33 @@ class ModernUI(ttk.Frame):
                 )
 
     def create_property_card(self, parent, property_data):
-        """Create a card displaying property information"""
+        """Create a clean property list item without borders"""
+        # Main container
         card = ttk.Frame(parent, style='Card.TFrame')
-        card.pack(fill='x', pady=(0, 10))
+        card.pack(fill='x', pady=1)  # Minimal spacing between items
         
-        # Property info
-        info_frame = ttk.Frame(card, style='Card.TFrame')
-        info_frame.pack(fill='x', padx=15, pady=10)
+        # Content container
+        content = ttk.Frame(card, style='Card.TFrame')
+        content.pack(fill='x', padx=10, pady=8)
         
-        # Property address only
-        ttk.Label(info_frame,
+        # Left side with house icon and address
+        left_frame = ttk.Frame(content, style='Card.TFrame')
+        left_frame.pack(side='left', fill='x', expand=True)
+        
+        # House icon and address in one line
+        ttk.Label(left_frame,
+                 text="🏠",
+                 style='Body.TLabel').pack(side='left', padx=(0, 10))
+                 
+        ttk.Label(left_frame,
                  text=property_data.get('address', 'No address'),
-                 style='CardTitle.TLabel').pack(anchor='w')
+                 style='Body.TLabel').pack(side='left')
         
-        # Actions
-        actions_frame = ttk.Frame(card, style='Card.TFrame')
-        actions_frame.pack(fill='x', padx=15, pady=(0, 10))
+        # Right side with action buttons
+        actions_frame = ttk.Frame(content, style='Card.TFrame')
+        actions_frame.pack(side='right')
         
-        # Edit button using create_styled_button
+        # Edit button with burgundy background and white text
         edit_btn = self.create_styled_button(
             actions_frame,
             "Edit",
@@ -707,14 +716,24 @@ class ModernUI(ttk.Frame):
         )
         edit_btn.pack(side='left', padx=(0, 5))
         
-        # Delete button using create_styled_button
+        # Delete button with burgundy background and white text
         delete_btn = self.create_styled_button(
             actions_frame,
             "Delete",
             'Primary.TButton',
             lambda: self.delete_property(property_data.get('_id'))
         )
-        delete_btn.pack(side='right')
+        delete_btn.pack(side='left')
+        
+        # Simple hover effect
+        def on_enter(e):
+            card.configure(style='CardHover.TFrame')
+            
+        def on_leave(e):
+            card.configure(style='Card.TFrame')
+        
+        card.bind('<Enter>', on_enter)
+        card.bind('<Leave>', on_leave)
 
     def show_reports(self):
         """Show reports view"""
